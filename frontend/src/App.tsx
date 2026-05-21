@@ -52,21 +52,20 @@ function App() {
     useEffect(() => {
         let cleanupUnload: (() => void) | undefined;
 
-        supabase.auth.getSession().then(async ({ data: { session: s } }) => {
+        supabase.auth.getSession().then(({ data: { session: s } }) => {
             setSession(s);
+            setIsLoading(false);
             if (s) {
-                await pullFromCloud(s.user.id);
-                setXp(getTotalXP());
+                // Pull from cloud in background — don't block the UI
+                pullFromCloud(s.user.id).then(() => setXp(getTotalXP()));
                 cleanupUnload = startSyncInterval(s.user.id);
             }
-            setIsLoading(false);
         });
 
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, s) => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
             setSession(s);
             if (s) {
-                await pullFromCloud(s.user.id);
-                setXp(getTotalXP());
+                pullFromCloud(s.user.id).then(() => setXp(getTotalXP()));
                 cleanupUnload = startSyncInterval(s.user.id);
             } else {
                 // Signed out — clear local data
