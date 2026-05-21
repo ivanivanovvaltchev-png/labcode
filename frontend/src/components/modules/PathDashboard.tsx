@@ -1,47 +1,38 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getPathById, PathSkill, isSkillMastered, calculateProgress } from '../../data/careerPaths';
-import { loadSelectedPath } from '../../lib/selectedPath';
-import { loadSelfAssessments, saveSelfAssessments } from '../../lib/selectedPath';
+import { getPathById, isSkillMastered, calculateProgress } from '../../data/careerPaths';
+import { loadSelectedPath, loadSelfAssessments, saveSelfAssessments } from '../../lib/selectedPath';
 import { loadKnowledgeProfile } from '../../lib/knowledgeProfile';
-import { isOnboardingComplete, getDiagnosticResult, getDailyPlan, completeTask, todayString } from '../../lib/userProgress';
+import { isOnboardingComplete, getDiagnosticResult, getDailyPlan, completeTask, todayString, saveDailyPlan } from '../../lib/userProgress';
 import { generateDailyPlan } from '../../ai/diagnosticAgent';
-import { saveDailyPlan } from '../../lib/userProgress';
 
-const categoryLabel: Record<string, string> = {
-    python: '🐍 Python',
-    git: '🌿 Git',
-    sql: '🗄️ SQL',
-    html: '🏗️ HTML',
-    css: '🎨 CSS',
-    js: '⚡ JavaScript',
-    react: '⚛️ React',
-    django: '🎸 Django',
-    deploy: '🚀 Deploy',
-    soft: '🧠 Soft Skills',
+const taskTypeIcon: Record<string, string> = { learn: '📖', practice: '💻', review: '🔄' };
+const taskTypeName: Record<string, string> = { learn: 'Aprender', practice: 'Practicar', review: 'Repasar' };
+const taskTypeColor: Record<string, string> = {
+    learn: 'border-blue-500/30 bg-blue-900/10',
+    practice: 'border-violet-500/30 bg-violet-900/10',
+    review: 'border-amber-500/30 bg-amber-900/10',
+};
+const taskTypeBadge: Record<string, string> = {
+    learn: 'text-blue-400 bg-blue-900/30',
+    practice: 'text-violet-400 bg-violet-900/30',
+    review: 'text-amber-400 bg-amber-900/30',
 };
 
-const importanceBadge: Record<string, string> = {
-    critical: 'bg-red-900/30 text-red-400 border-red-500/30',
-    important: 'bg-amber-900/30 text-amber-400 border-amber-500/30',
-    bonus: 'bg-light/5 text-light/40 border-light/10',
+const pathColors: Record<string, { text: string; bar: string; border: string }> = {
+    'python-dev':       { text: 'text-yellow-400', bar: 'bg-yellow-400', border: 'border-yellow-500/30' },
+    'frontend-dev':     { text: 'text-pink-400',   bar: 'bg-pink-400',   border: 'border-pink-500/30'   },
+    'fullstack-python': { text: 'text-blue-400',   bar: 'bg-blue-400',   border: 'border-blue-500/30'   },
+    'master-complete':  { text: 'text-violet-400', bar: 'bg-violet-400', border: 'border-violet-500/30' },
 };
-
-function getStatusMessage(pct: number): { msg: string; color: string; emoji: string } {
-    if (pct >= 100) return { msg: '¡Enhorabuena! Estás listo para postular a este empleo.', color: 'text-emerald-400', emoji: '🎉' };
-    if (pct >= 80) return { msg: 'Casi listo. Un último esfuerzo y podrás postular.', color: 'text-emerald-400', emoji: '🔥' };
-    if (pct >= 50) return { msg: 'Buen avance. Sigue practicando las habilidades pendientes.', color: 'text-yellow-400', emoji: '💪' };
-    if (pct >= 20) return { msg: 'En progreso. Cada ejercicio te acerca al objetivo.', color: 'text-blue-400', emoji: '📈' };
-    return { msg: 'Empezando el camino. ¡El primer paso ya está dado!', color: 'text-light/60', emoji: '🚶' };
-}
 
 const PathDashboard: React.FC = () => {
     const navigate = useNavigate();
     const [assessments, setAssessments] = useState<Record<string, boolean>>({});
     const [profileConcepts, setProfileConcepts] = useState<string[]>([]);
-    const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['python', 'git']));
     const [dailyPlan, setDailyPlan] = useState<ReturnType<typeof getDailyPlan>>(null);
     const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
+    const [showSkillsDetail, setShowSkillsDetail] = useState(false);
 
     const pathId = loadSelectedPath();
     const path = pathId ? getPathById(pathId) : null;
@@ -51,12 +42,8 @@ const PathDashboard: React.FC = () => {
         setAssessments(loadSelfAssessments(pathId));
         const profile = loadKnowledgeProfile();
         setProfileConcepts(profile?.concepts ?? []);
-
-        // Load or generate today's daily plan
         const existing = getDailyPlan(pathId);
-        if (existing && existing.date === todayString()) {
-            setDailyPlan(existing);
-        }
+        if (existing && existing.date === todayString()) setDailyPlan(existing);
     }, [pathId]);
 
     const toggleAssessment = useCallback((skillId: string) => {
@@ -68,25 +55,18 @@ const PathDashboard: React.FC = () => {
         });
     }, [pathId]);
 
-    const toggleCategory = (cat: string) => {
-        setExpandedCategories(prev => {
-            const next = new Set(prev);
-            next.has(cat) ? next.delete(cat) : next.add(cat);
-            return next;
-        });
-    };
-
     if (!path) { navigate('/elegir-camino'); return null; }
-
-    // Redirect to onboarding if not complete
-    if (pathId && !isOnboardingComplete(pathId)) {
-        navigate('/onboarding');
-        return null;
-    }
+    if (pathId && !isOnboardingComplete(pathId)) { navigate('/onboarding'); return null; }
 
     const diagResult = pathId ? getDiagnosticResult(pathId) : null;
+    const { pct, mastered, total, criticalMastered, criticalTotal } = calculateProgress(path, profileConcepts, assessments);
+    const col = pathColors[path.id] ?? pathColors['master-complete'];
 
-    const handleGenerateTodayPlan = async () => {
+    const masteredSkills = path.skills.filter(s => isSkillMastered(s, profileConcepts, assessments));
+    const pendingSkills = path.skills.filter(s => !isSkillMastered(s, profileConcepts, assessments));
+    const nextCritical = pendingSkills.find(s => s.importance === 'critical');
+
+    const handleGeneratePlan = async () => {
         if (!pathId || !path) return;
         setIsGeneratingPlan(true);
         const profile = loadKnowledgeProfile();
@@ -107,291 +87,242 @@ const PathDashboard: React.FC = () => {
         setDailyPlan(getDailyPlan(pathId));
     };
 
-    const taskTypeIcon: Record<string, string> = { learn: '📖', practice: '💻', review: '🔄' };
-    const taskTypeColor: Record<string, string> = {
-        learn: 'border-blue-500/20 bg-blue-900/10',
-        practice: 'border-violet-500/20 bg-violet-900/10',
-        review: 'border-amber-500/20 bg-amber-900/10',
+    const goToMentor = (taskTitle: string, taskDesc: string, skillRef: string) => {
+        const params = new URLSearchParams({ taskTitle, taskDesc, skillRef });
+        navigate(`/mentor?${params.toString()}`);
     };
 
-    const { pct, mastered, total, criticalMastered, criticalTotal } = calculateProgress(path, profileConcepts, assessments);
-    const status = getStatusMessage(pct);
-
-    const masteredSkills = path.skills.filter(s => isSkillMastered(s, profileConcepts, assessments));
-    const pendingSkills = path.skills.filter(s => !isSkillMastered(s, profileConcepts, assessments));
-    const nextSkill = pendingSkills.find(s => s.importance === 'critical') ?? pendingSkills[0];
-
-    // Group pending skills by category
-    const pendingByCategory = pendingSkills.reduce<Record<string, PathSkill[]>>((acc, s) => {
-        (acc[s.category] ??= []).push(s);
-        return acc;
-    }, {});
-
-    const colorMap: Record<string, string> = {
-        'python-dev': 'yellow', 'frontend-dev': 'pink', 'fullstack-python': 'blue', 'master-complete': 'violet',
-    };
-    const col = colorMap[path.id] ?? 'violet';
-    const progressBarColor: Record<string, string> = {
-        yellow: 'bg-yellow-400', pink: 'bg-pink-400', blue: 'bg-blue-400', violet: 'bg-violet-400',
-    };
-    const textColor: Record<string, string> = {
-        yellow: 'text-yellow-400', pink: 'text-pink-400', blue: 'text-blue-400', violet: 'text-violet-400',
-    };
+    const completedCount = dailyPlan?.tasks.filter(t => t.completed).length ?? 0;
+    const totalTasks = dailyPlan?.tasks.length ?? 0;
 
     return (
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-5">
 
-            {/* ── Hero ── */}
-            <div className="bg-[#1a1a1a] border border-light/10 rounded-2xl p-6 mb-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
-                    <div>
-                        <div className="flex items-center gap-2 mb-1">
-                            <span className="text-2xl">{path.emoji}</span>
-                            <h1 className={`text-2xl font-bold ${textColor[col]}`}>{path.title}</h1>
+            {/* ── Compact Header ── */}
+            <div className={`bg-[#1a1a1a] border ${col.border} rounded-2xl p-5`}>
+                <div className="flex items-center justify-between gap-4 mb-4">
+                    <div className="flex items-center gap-2.5">
+                        <span className="text-xl">{path.emoji}</span>
+                        <div>
+                            <h1 className={`text-lg font-bold ${col.text} leading-none`}>{path.title}</h1>
+                            <p className="text-xs text-light/40 mt-0.5">Objetivo: {path.jobTitle}</p>
                         </div>
-                        <p className="text-sm text-light/40">Objetivo: <span className="text-light/60">{path.jobTitle}</span></p>
                     </div>
-                    <div className="flex gap-2 flex-shrink-0">
-                        <button
-                            onClick={() => navigate('/mentor')}
-                            className="bg-violet-600 hover:bg-violet-500 text-white text-sm font-bold px-4 py-2 rounded-xl transition-all"
-                        >
-                            🧠 Entrenar ahora
-                        </button>
+                    <div className="flex items-center gap-2">
+                        <span className={`text-2xl font-bold ${col.text}`}>{pct}%</span>
                         <button
                             onClick={() => navigate('/elegir-camino')}
-                            className="bg-light/5 hover:bg-light/10 border border-light/10 text-light/50 text-sm px-4 py-2 rounded-xl transition-all"
+                            className="text-xs text-light/30 hover:text-light/60 border border-light/10 px-2.5 py-1 rounded-lg transition-colors"
                         >
                             Cambiar
                         </button>
                     </div>
                 </div>
-
-                {/* Progress bar */}
-                <div className="mb-3">
-                    <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-semibold text-light/70">Progreso hacia el objetivo</span>
-                        <span className={`text-2xl font-bold ${textColor[col]}`}>{pct}%</span>
-                    </div>
-                    <div className="w-full h-3 bg-[#0f0f0f] rounded-full overflow-hidden border border-light/10">
-                        <div
-                            className={`h-full ${progressBarColor[col]} rounded-full transition-all duration-700`}
-                            style={{ width: `${pct}%` }}
-                        />
-                    </div>
-                    <div className="flex justify-between mt-1.5 text-xs text-light/30">
-                        <span>{criticalMastered}/{criticalTotal} habilidades críticas dominadas</span>
-                        <span>{mastered}/{total} en total</span>
-                    </div>
+                <div className="w-full h-2 bg-[#0f0f0f] rounded-full overflow-hidden border border-light/10">
+                    <div className={`h-full ${col.bar} rounded-full transition-all duration-700`} style={{ width: `${pct}%` }} />
                 </div>
-
-                {/* Status message */}
-                <div className={`text-sm font-semibold ${status.color}`}>
-                    {status.emoji} {status.msg}
+                <div className="flex justify-between mt-1.5 text-xs text-light/25">
+                    <span>{criticalMastered}/{criticalTotal} habilidades clave dominadas</span>
+                    <span>{mastered}/{total} total</span>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-
-                {/* ── Left: Mastered ── */}
-                <div className="lg:col-span-4">
-                    <div className="bg-[#1a1a1a] border border-emerald-500/20 rounded-2xl p-5">
-                        <div className="flex items-center gap-2 mb-4">
-                            <span className="text-lg">✅</span>
-                            <h2 className="text-sm font-bold text-emerald-400 uppercase tracking-wider">Ya dominas ({masteredSkills.length})</h2>
-                        </div>
-                        {masteredSkills.length === 0 ? (
-                            <p className="text-xs text-light/30 italic">
-                                Sube tus ejercicios a <button onClick={() => navigate('/perfil-aprendizaje')} className="text-emerald-400 underline">Mi Perfil</button> para detectar tus habilidades automáticamente.
+            {/* ── Plan de hoy (MAIN) ── */}
+            <div className="bg-[#1a1a1a] border border-light/10 rounded-2xl p-6">
+                <div className="flex items-center justify-between mb-5">
+                    <div>
+                        <h2 className="text-base font-bold text-light">Tu entrenamiento de hoy</h2>
+                        {diagResult && (
+                            <p className="text-xs text-light/30 mt-0.5">
+                                Basado en tu diagnóstico ({diagResult.score}/100)
+                                {dailyPlan && ` · ${completedCount}/${totalTasks} completadas`}
                             </p>
-                        ) : (
-                            <div className="space-y-2">
-                                {masteredSkills.map(s => (
-                                    <div key={s.id} className="flex items-center gap-2 bg-emerald-900/10 border border-emerald-500/20 rounded-xl px-3 py-2">
-                                        <span className="text-emerald-400 text-xs flex-shrink-0">✓</span>
-                                        <div className="min-w-0">
-                                            <p className="text-sm text-light/80 font-medium truncate">{s.name}</p>
-                                            <p className="text-xs text-light/30">{categoryLabel[s.category]}</p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-
-                        {masteredSkills.length > 0 && (
-                            <div className="mt-4 pt-4 border-t border-light/10">
-                                <button
-                                    onClick={() => navigate('/perfil-aprendizaje')}
-                                    className="text-xs text-emerald-500/60 hover:text-emerald-400 transition-colors"
-                                >
-                                    + Subir más ejercicios para actualizar
-                                </button>
-                            </div>
                         )}
                     </div>
-                </div>
-
-                {/* ── Right: Pending ── */}
-                <div className="lg:col-span-8 flex flex-col gap-4">
-
-                    {/* Next step recommendation */}
-                    {nextSkill && pct < 100 && (
-                        <div className="bg-[#1a1a1a] border border-violet-500/30 rounded-2xl p-4 flex items-center justify-between gap-4">
-                            <div>
-                                <div className="text-xs text-violet-400 font-semibold mb-1">⚡ Siguiente paso recomendado</div>
-                                <p className="text-sm font-bold text-light">{nextSkill.name}</p>
-                                <p className="text-xs text-light/40 mt-0.5">{nextSkill.description}</p>
-                            </div>
-                            <button
-                                onClick={() => navigate('/mentor')}
-                                className="bg-violet-600 hover:bg-violet-500 text-white font-bold text-sm px-4 py-2.5 rounded-xl transition-all flex-shrink-0"
-                            >
-                                Practicar →
-                            </button>
-                        </div>
+                    {dailyPlan && !isGeneratingPlan && (
+                        <button
+                            onClick={handleGeneratePlan}
+                            className="text-xs text-light/30 hover:text-light/60 transition-colors border border-light/10 px-3 py-1.5 rounded-lg"
+                        >
+                            🔄 Nuevo plan
+                        </button>
                     )}
-
-                    {/* Pending skills by category */}
-                    <div className="bg-[#1a1a1a] border border-light/10 rounded-2xl p-5">
-                        <div className="flex items-center gap-2 mb-4">
-                            <span className="text-lg">📚</span>
-                            <h2 className="text-sm font-bold text-light/60 uppercase tracking-wider">Por aprender ({pendingSkills.length})</h2>
-                        </div>
-
-                        {pendingSkills.length === 0 ? (
-                            <div className="text-center py-6">
-                                <div className="text-4xl mb-2">🎉</div>
-                                <p className="text-sm font-bold text-emerald-400">¡Todas las habilidades dominadas!</p>
-                                <p className="text-xs text-light/40 mt-1">Estás preparado para postular a empleos de {path.jobTitle}.</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-3">
-                                {Object.entries(pendingByCategory).map(([cat, skills]) => (
-                                    <div key={cat} className="border border-light/10 rounded-xl overflow-hidden">
-                                        <button
-                                            onClick={() => toggleCategory(cat)}
-                                            className="w-full flex items-center justify-between px-4 py-2.5 bg-light/5 hover:bg-light/8 transition-colors"
-                                        >
-                                            <span className="text-sm font-semibold text-light/70">{categoryLabel[cat] ?? cat}</span>
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-xs text-light/30">{skills.length} pendientes</span>
-                                                <span className="text-xs text-light/30">{expandedCategories.has(cat) ? '▲' : '▼'}</span>
-                                            </div>
-                                        </button>
-
-                                        {expandedCategories.has(cat) && (
-                                            <div className="divide-y divide-light/5">
-                                                {skills.map(skill => (
-                                                    <div key={skill.id} className="flex items-center justify-between px-4 py-3 gap-3">
-                                                        <div className="min-w-0 flex-1">
-                                                            <div className="flex items-center gap-2 mb-0.5">
-                                                                <p className="text-sm text-light/70 font-medium">{skill.name}</p>
-                                                                <span className={`text-xs px-1.5 py-0.5 rounded-full border ${importanceBadge[skill.importance]}`}>
-                                                                    {skill.importance === 'critical' ? 'clave' : skill.importance === 'important' ? 'importante' : 'bonus'}
-                                                                </span>
-                                                            </div>
-                                                            <p className="text-xs text-light/30">{skill.description}</p>
-                                                            <p className="text-xs text-light/20 mt-0.5">{skill.masterRef}</p>
-                                                        </div>
-
-                                                        <div className="flex items-center gap-2 flex-shrink-0">
-                                                            {skill.selfAssess && (
-                                                                <label className="flex items-center gap-1.5 cursor-pointer group">
-                                                                    <input
-                                                                        type="checkbox"
-                                                                        checked={assessments[skill.id] === true}
-                                                                        onChange={() => toggleAssessment(skill.id)}
-                                                                        className="w-4 h-4 accent-emerald-500 cursor-pointer"
-                                                                    />
-                                                                    <span className="text-xs text-light/30 group-hover:text-light/50 transition-colors whitespace-nowrap">
-                                                                        Lo sé
-                                                                    </span>
-                                                                </label>
-                                                            )}
-                                                            <button
-                                                                onClick={() => navigate('/mentor')}
-                                                                className="text-xs text-violet-400/60 hover:text-violet-400 transition-colors whitespace-nowrap"
-                                                            >
-                                                                Practicar →
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Quick actions */}
-                    <div className="grid grid-cols-2 gap-3">
-                        <button onClick={() => navigate('/perfil-aprendizaje')} className="bg-[#1a1a1a] hover:bg-light/5 border border-emerald-500/20 rounded-xl p-4 text-left transition-all">
-                            <div className="text-lg mb-1">📂</div>
-                            <div className="text-sm font-semibold text-emerald-400">Subir ejercicios</div>
-                            <div className="text-xs text-light/30 mt-0.5">Actualiza tu perfil</div>
-                        </button>
-                        <button onClick={() => navigate('/error-test')} className="bg-[#1a1a1a] hover:bg-light/5 border border-red-500/20 rounded-xl p-4 text-left transition-all">
-                            <div className="text-lg mb-1">⚠️</div>
-                            <div className="text-sm font-semibold text-red-400">Test de errores</div>
-                            <div className="text-xs text-light/30 mt-0.5">Refuerza lo fallado</div>
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            {/* ── Daily Plan ── */}
-            <div className="mt-6 bg-[#1a1a1a] border border-light/10 rounded-2xl p-5">
-                <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                        <span className="text-lg">📋</span>
-                        <h2 className="text-sm font-bold text-light/70 uppercase tracking-wider">Plan de hoy</h2>
-                        {diagResult && <span className="text-xs text-light/30">· basado en tu diagnóstico ({diagResult.score}%)</span>}
-                    </div>
-                    <button
-                        onClick={handleGenerateTodayPlan}
-                        disabled={isGeneratingPlan}
-                        className="text-xs text-violet-400 hover:text-violet-300 transition-colors disabled:opacity-40"
-                    >
-                        {isGeneratingPlan ? 'Generando…' : dailyPlan ? '🔄 Nuevo plan' : '✨ Generar plan'}
-                    </button>
                 </div>
 
+                {/* No plan yet */}
                 {!dailyPlan && !isGeneratingPlan && (
-                    <div className="text-center py-8">
-                        <p className="text-sm text-light/40 mb-3">Genera tu rutina de entrenamiento personalizada para hoy</p>
-                        <button onClick={handleGenerateTodayPlan} className="bg-violet-600 hover:bg-violet-500 text-white font-bold px-6 py-2.5 rounded-xl text-sm transition-all">
+                    <div className="text-center py-10">
+                        <div className="text-4xl mb-3">📋</div>
+                        <p className="text-light/60 font-semibold mb-1">¿Qué practicamos hoy?</p>
+                        <p className="text-sm text-light/30 mb-5 max-w-xs mx-auto">
+                            La IA genera 3 ejercicios personalizados según tus puntos débiles del diagnóstico.
+                        </p>
+                        <button
+                            onClick={handleGeneratePlan}
+                            className="bg-violet-600 hover:bg-violet-500 text-white font-bold px-8 py-3 rounded-xl text-sm transition-all"
+                        >
                             ✨ Generar plan de hoy
                         </button>
                     </div>
                 )}
 
+                {/* Generating */}
                 {isGeneratingPlan && (
-                    <div className="flex items-center justify-center gap-2 py-8">
-                        {[0, 1, 2].map(i => <span key={i} className="w-2 h-2 bg-violet-400 rounded-full animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />)}
-                        <span className="text-sm text-light/40 ml-2">Creando tu rutina…</span>
+                    <div className="flex flex-col items-center justify-center gap-3 py-10">
+                        <div className="flex gap-1.5">
+                            {[0, 1, 2].map(i => (
+                                <span key={i} className="w-2.5 h-2.5 bg-violet-400 rounded-full animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
+                            ))}
+                        </div>
+                        <p className="text-sm text-light/40">Creando tu rutina personalizada…</p>
                     </div>
                 )}
 
+                {/* Plan cards */}
                 {dailyPlan && !isGeneratingPlan && (
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        {dailyPlan.tasks.map(task => (
-                            <div key={task.id} className={`border rounded-xl p-4 transition-all ${task.completed ? 'opacity-50 border-light/10 bg-light/5' : taskTypeColor[task.type as keyof typeof taskTypeColor]}`}>
-                                <div className="flex items-center justify-between mb-2">
-                                    <span className="text-lg">{taskTypeIcon[task.type as keyof typeof taskTypeIcon]}</span>
-                                    {task.completed
-                                        ? <span className="text-xs text-emerald-400 font-semibold">✅ Hecho</span>
-                                        : <button onClick={() => handleCompleteTask(task.id)} className="text-xs text-light/30 hover:text-emerald-400 transition-colors">Marcar hecho</button>
-                                    }
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        {dailyPlan.tasks.map((task, idx) => (
+                            <div
+                                key={task.id}
+                                className={`relative border rounded-2xl p-4 flex flex-col gap-3 transition-all ${task.completed ? 'opacity-40 border-light/10 bg-light/5' : taskTypeColor[task.type]}`}
+                            >
+                                {/* Task number */}
+                                <div className="flex items-center justify-between">
+                                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${taskTypeBadge[task.type]}`}>
+                                        {taskTypeIcon[task.type]} {taskTypeName[task.type]}
+                                    </span>
+                                    <span className="text-xs text-light/20 font-mono">#{idx + 1}</span>
                                 </div>
-                                <p className="text-sm font-bold text-light mb-1 line-clamp-1">{task.title}</p>
-                                <p className="text-xs text-light/40 leading-relaxed line-clamp-2">{task.description}</p>
-                                <button onClick={() => navigate('/mentor')} className="text-xs text-violet-400 hover:text-violet-300 mt-2 transition-colors">
-                                    Practicar →
-                                </button>
+
+                                <div className="flex-1">
+                                    <p className="text-sm font-bold text-light mb-1">{task.title}</p>
+                                    <p className="text-xs text-light/40 leading-relaxed">{task.description}</p>
+                                </div>
+
+                                <div className="flex flex-col gap-2 pt-1 border-t border-light/10">
+                                    {task.completed ? (
+                                        <div className="text-center text-xs text-emerald-400 font-semibold">✅ Completado · +30 XP</div>
+                                    ) : (
+                                        <>
+                                            <button
+                                                onClick={() => goToMentor(task.title, task.description, task.skillRef)}
+                                                className="w-full bg-violet-600 hover:bg-violet-500 text-white font-bold py-2 rounded-xl text-xs transition-all"
+                                            >
+                                                Empezar ejercicio →
+                                            </button>
+                                            <button
+                                                onClick={() => handleCompleteTask(task.id)}
+                                                className="w-full text-xs text-light/25 hover:text-emerald-400 transition-colors py-1"
+                                            >
+                                                Marcar como hecho
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
                             </div>
                         ))}
+                    </div>
+                )}
+            </div>
+
+            {/* ── Siguiente paso si no hay plan ── */}
+            {!dailyPlan && nextCritical && (
+                <div className="bg-[#1a1a1a] border border-violet-500/20 rounded-2xl p-4 flex items-center justify-between gap-4">
+                    <div>
+                        <div className="text-xs text-violet-400 font-semibold mb-1">⚡ Siguiente habilidad clave</div>
+                        <p className="text-sm font-bold text-light">{nextCritical.name}</p>
+                        <p className="text-xs text-light/40 mt-0.5">{nextCritical.description}</p>
+                    </div>
+                    <button
+                        onClick={() => goToMentor(nextCritical.name, nextCritical.description, nextCritical.name)}
+                        className="bg-violet-600 hover:bg-violet-500 text-white font-bold text-sm px-4 py-2.5 rounded-xl transition-all flex-shrink-0"
+                    >
+                        Practicar →
+                    </button>
+                </div>
+            )}
+
+            {/* ── Detalle de habilidades (colapsable) ── */}
+            <div className="bg-[#1a1a1a] border border-light/10 rounded-2xl overflow-hidden">
+                <button
+                    onClick={() => setShowSkillsDetail(v => !v)}
+                    className="w-full flex items-center justify-between px-5 py-4 hover:bg-light/5 transition-colors"
+                >
+                    <div className="flex items-center gap-4">
+                        <div className="text-sm font-semibold text-light/70">
+                            ✅ Dominas <span className="text-emerald-400 font-bold">{masteredSkills.length}</span>
+                            <span className="text-light/30 mx-2">·</span>
+                            📚 Por aprender <span className="text-light font-bold">{pendingSkills.length}</span>
+                        </div>
+                    </div>
+                    <span className="text-xs text-light/30">{showSkillsDetail ? '▲ Ocultar' : '▼ Ver detalle'}</span>
+                </button>
+
+                {showSkillsDetail && (
+                    <div className="px-5 pb-5 border-t border-light/10">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mt-4">
+
+                            {/* Mastered */}
+                            <div>
+                                <h3 className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-3">Ya dominas</h3>
+                                {masteredSkills.length === 0 ? (
+                                    <p className="text-xs text-light/30 italic">
+                                        <button onClick={() => navigate('/perfil-aprendizaje')} className="text-emerald-400 underline">Sube tus ejercicios</button> para detectar tus habilidades.
+                                    </p>
+                                ) : (
+                                    <div className="space-y-1.5">
+                                        {masteredSkills.map(s => (
+                                            <div key={s.id} className="flex items-center gap-2 px-3 py-1.5 bg-emerald-900/10 border border-emerald-500/15 rounded-xl">
+                                                <span className="text-emerald-400 text-xs">✓</span>
+                                                <span className="text-sm text-light/70">{s.name}</span>
+                                            </div>
+                                        ))}
+                                        <button onClick={() => navigate('/perfil-aprendizaje')} className="text-xs text-light/25 hover:text-emerald-400 transition-colors mt-1 pl-1">
+                                            + Actualizar perfil
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Pending */}
+                            <div>
+                                <h3 className="text-xs font-bold text-light/40 uppercase tracking-wider mb-3">Por aprender</h3>
+                                <div className="space-y-1.5">
+                                    {pendingSkills.slice(0, 8).map(s => (
+                                        <div key={s.id} className="flex items-center justify-between px-3 py-1.5 bg-light/5 border border-light/10 rounded-xl gap-2">
+                                            <div className="min-w-0">
+                                                <span className="text-sm text-light/60 truncate block">{s.name}</span>
+                                                {s.importance === 'critical' && (
+                                                    <span className="text-xs text-red-400/70">clave</span>
+                                                )}
+                                            </div>
+                                            <div className="flex items-center gap-2 flex-shrink-0">
+                                                {s.selfAssess && (
+                                                    <label className="flex items-center gap-1 cursor-pointer">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={assessments[s.id] === true}
+                                                            onChange={() => toggleAssessment(s.id)}
+                                                            className="w-3.5 h-3.5 accent-emerald-500 cursor-pointer"
+                                                        />
+                                                        <span className="text-xs text-light/25">Lo sé</span>
+                                                    </label>
+                                                )}
+                                                <button
+                                                    onClick={() => goToMentor(s.name, s.description, s.name)}
+                                                    className="text-xs text-violet-400/60 hover:text-violet-400 transition-colors whitespace-nowrap"
+                                                >
+                                                    Practicar →
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {pendingSkills.length > 8 && (
+                                        <p className="text-xs text-light/25 pl-1">+{pendingSkills.length - 8} más por aprender</p>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>

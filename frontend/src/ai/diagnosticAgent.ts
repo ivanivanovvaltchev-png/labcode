@@ -32,6 +32,52 @@ export interface DailyTaskRaw {
     skillRef: string;
 }
 
+async function deepSeekRaw(systemPrompt: string, userPrompt: string): Promise<string> {
+    const apiKey = import.meta.env.VITE_DEEPSEEK_API_KEY;
+    if (!apiKey) throw new Error('No API Key');
+    const response = await fetch(DEEPSEEK_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+        body: JSON.stringify({
+            model: 'deepseek-chat',
+            messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
+            temperature: 0.6,
+            max_tokens: 600,
+        }),
+    });
+    if (!response.ok) throw new Error(await response.text());
+    const data = await response.json();
+    return (data.choices?.[0]?.message?.content ?? '').trim();
+}
+
+export async function generateSkillExercise(
+    skillName: string,
+    pathTitle: string,
+    profileConcepts: string[]
+): Promise<string> {
+    const known = profileConcepts.length > 0
+        ? `El estudiante ya conoce: ${profileConcepts.slice(0, 8).join(', ')}.`
+        : '';
+
+    const systemPrompt = `Eres un profesor experto en programación. Genera enunciados de ejercicios prácticos.
+
+REGLAS ESTRICTAS:
+- Devuelve ÚNICAMENTE el texto del enunciado. Nada más.
+- Sin markdown, sin títulos, sin "Ejercicio:", sin explicaciones adicionales.
+- El ejercicio debe ser resoluble en 15-30 minutos
+- Incluye ejemplos de entrada/salida cuando aplique
+- Redacta en español claro y directo`;
+
+    const userPrompt = `Camino: ${pathTitle}
+Habilidad a practicar: ${skillName}
+${known}
+
+Genera un ejercicio práctico y concreto para practicar "${skillName}".
+Contexto realista, instrucciones claras, nivel adecuado para alguien que está aprendiendo.`;
+
+    return deepSeekRaw(systemPrompt, userPrompt);
+}
+
 async function deepSeekJSON<T>(systemPrompt: string, userPrompt: string): Promise<T> {
     const apiKey = import.meta.env.VITE_DEEPSEEK_API_KEY;
     if (!apiKey) throw new Error('No API Key');
