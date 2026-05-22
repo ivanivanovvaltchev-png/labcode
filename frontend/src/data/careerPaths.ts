@@ -128,7 +128,7 @@ const pythonDevSkills: PathSkill[] = [
     {
         id: 'py-tuples', name: 'Tuplas',
         description: 'Colecciones ordenadas e inmutables. Cuándo usar tuplas vs listas.',
-        profileKeywords: ['tupla', 'tuple', '= (', ', )'],
+        profileKeywords: ['tupla', 'tuple(', ') = (', 'tuple ='],
         selfAssess: false, category: 'python', importance: 'important',
         masterRef: 'Python Tema 5 — Tuplas y Sets', mentorTopic: 'tuplas en Python: cuándo y cómo usarlas',
         order: 12,
@@ -370,6 +370,6 @@ export function getAvailableSkills(
 
     const maxMasteredOrder = masteredOrders.length > 0 ? Math.max(...masteredOrders) : 0;
 
-    // Include mastered skills + up to the next 2 in sequence
-    return sorted.filter(s => s.order <= maxMasteredOrder + 2);
+    // Include mastered skills + the next 1 topic (the immediate next thing to learn)
+    return sorted.filter(s => s.order <= maxMasteredOrder + 1);
 }
