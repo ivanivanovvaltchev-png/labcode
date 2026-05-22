@@ -190,7 +190,8 @@ ${JSON.stringify(questionsAndAnswers, null, 2)}`;
 export async function generateDailyPlan(
     path: CareerPath,
     weakAreas: string[],
-    profileConcepts: string[]
+    profileConcepts: string[],
+    availableSkills: { name: string; importance: string; order: number }[]
 ): Promise<DailyTaskRaw[]> {
     const systemPrompt = `Eres un entrenador de programación de élite. Tu trabajo es generar planes de entrenamiento diarios personalizados.
 
@@ -205,22 +206,37 @@ FORMATO DE RESPUESTA: Solo JSON válido, sin texto adicional, sin markdown.
 ]
 
 Tipos:
-- learn: Estudiar/entender un concepto nuevo
-- practice: Resolver un ejercicio práctico concreto
-- review: Repasar y reforzar algo ya visto pero débil`;
+- learn: Estudiar/entender un concepto nuevo (para lo que aún no ha visto)
+- practice: Resolver un ejercicio práctico concreto (para lo ya estudiado)
+- review: Repasar y reforzar algo ya visto pero que salió débil en el diagnóstico
 
-    const pending = path.skills
-        .filter(s => s.importance === 'critical' && !profileConcepts.some(c => s.profileKeywords.some(k => c.toLowerCase().includes(k.toLowerCase()))))
-        .slice(0, 5)
-        .map(s => s.name);
+REGLA CRÍTICA: Solo puedes generar tareas sobre las habilidades de la lista "DISPONIBLES AHORA".
+NUNCA sugieras habilidades que no estén en esa lista, aunque parezcan relevantes.`;
 
-    const userPrompt = `Camino: ${path.title} (${path.jobTitle})
-Áreas débiles detectadas en el diagnóstico: ${weakAreas.length > 0 ? weakAreas.join(', ') : 'ninguna detectada aún'}
-Habilidades pendientes críticas: ${pending.join(', ')}
-Conocimientos actuales: ${profileConcepts.slice(0, 5).join(', ') || 'básico'}
+    // Skills the student can work on right now (mastered + next in sequence)
+    const availableNames = availableSkills.map(s => `${s.name} (${s.importance})`).join(', ');
 
-Genera exactamente 3 tareas para el entrenamiento de hoy. Una sesión realista de 45-60 minutos.
-Prioriza las áreas débiles y habilidades críticas pendientes.`;
+    // Next unmastered skill (for "learn" task)
+    const nextToLearn = availableSkills.find(s =>
+        !profileConcepts.some(c => c.toLowerCase().includes(s.name.toLowerCase()))
+    );
+
+    // Weak areas that are in the available list
+    const relevantWeakAreas = weakAreas.filter(w =>
+        availableSkills.some(s => s.name.toLowerCase().includes(w.toLowerCase()) || w.toLowerCase().includes(s.name.toLowerCase()))
+    );
+
+    const userPrompt = `Camino: ${path.title} (objetivo: ${path.jobTitle})
+
+DISPONIBLES AHORA (únicas habilidades válidas para el plan):
+${availableNames}
+
+Áreas débiles del estudiante (solo de las disponibles): ${relevantWeakAreas.length > 0 ? relevantWeakAreas.join(', ') : 'ninguna específica'}
+Próxima habilidad a introducir: ${nextToLearn?.name ?? 'consolidar lo aprendido'}
+Conocimientos detectados: ${profileConcepts.slice(0, 8).join(', ') || 'básico'}
+
+Genera exactamente 3 tareas para hoy (sesión realista de 45-60 minutos).
+IMPORTANTE: Solo usa habilidades de la lista DISPONIBLES AHORA. Si hay áreas débiles, prioriza repasarlas.`;
 
     return await deepSeekJSON<DailyTaskRaw[]>(systemPrompt, userPrompt);
 }

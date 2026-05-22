@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getPathById, isSkillMastered, calculateProgress } from '../../data/careerPaths';
+import { getPathById, isSkillMastered, calculateProgress, getAvailableSkills } from '../../data/careerPaths';
 import { loadSelectedPath, loadSelfAssessments, saveSelfAssessments } from '../../lib/selectedPath';
 import { loadKnowledgeProfile } from '../../lib/knowledgeProfile';
 import { isOnboardingComplete, getDiagnosticResult, getDailyPlan, completeTask, todayString, saveDailyPlan } from '../../lib/userProgress';
@@ -70,7 +70,9 @@ const PathDashboard: React.FC = () => {
         if (!pathId || !path) return;
         setIsGeneratingPlan(true);
         const profile = loadKnowledgeProfile();
-        const tasks = await generateDailyPlan(path, diagResult?.weakAreas ?? [], profile?.concepts ?? []);
+        const concepts = profile?.concepts ?? [];
+        const available = getAvailableSkills(path, concepts, assessments);
+        const tasks = await generateDailyPlan(path, diagResult?.weakAreas ?? [], concepts, available);
         const plan = {
             date: todayString(),
             tasks: tasks.map((t, i) => ({ ...t, id: `task-${Date.now()}-${i}`, completed: false })),

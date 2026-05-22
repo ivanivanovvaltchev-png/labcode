@@ -86,7 +86,7 @@ const OnboardingFlow: React.FC<Props> = ({ pathId }) => {
         setIsGeneratingPlan(true);
         setStep('plan');
         const profile = loadKnowledgeProfile();
-        const tasks = await generateDailyPlan(path, evalResult?.weakAreas ?? [], profile?.concepts ?? []);
+        const tasks = await generateDailyPlan(path, evalResult?.weakAreas ?? [], profile?.concepts ?? [], path.skills);
         const plan = {
             date: todayString(),
             tasks: tasks.map((t, i) => ({ ...t, id: `task-${i}`, completed: false })),
