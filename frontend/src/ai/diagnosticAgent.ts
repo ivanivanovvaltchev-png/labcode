@@ -193,50 +193,74 @@ export async function generateDailyPlan(
     profileConcepts: string[],
     availableSkills: { name: string; importance: string; order: number }[]
 ): Promise<DailyTaskRaw[]> {
-    const systemPrompt = `Eres un entrenador de programación de élite. Tu trabajo es generar planes de entrenamiento diarios personalizados.
+    // If no available skills, fall back to all skills
+    const skills = availableSkills.length > 0 ? availableSkills : path.skills;
 
-FORMATO DE RESPUESTA: Solo JSON válido, sin texto adicional, sin markdown.
+    // Separate mastered (review/practice candidates) from next-to-learn
+    const masteredSkills = skills.filter(s =>
+        profileConcepts.some(c =>
+            s.name.toLowerCase().split(' ').some(word => word.length > 3 && c.toLowerCase().includes(word))
+        )
+    );
+    const nextSkills = skills.filter(s => !masteredSkills.find(m => m.name === s.name));
+
+    // Only weak areas that are in available skills
+    const relevantWeakAreas = weakAreas.filter(w =>
+        skills.some(s => s.name.toLowerCase().includes(w.toLowerCase().split(' ')[0]))
+    );
+
+    // Build numbered list — LLMs respect numbered lists much better
+    const numberedList = skills
+        .map((s, i) => `  ${i + 1}. "${s.name}"`)
+        .join('\n');
+
+    const systemPrompt = `Eres un entrenador de programación. Generas planes de entrenamiento diarios en JSON.
+
+FORMATO ESTRICTO — devuelve ÚNICAMENTE este JSON, sin texto extra:
 [
-  {
-    "type": "learn" | "practice" | "review",
-    "title": "título corto de la tarea",
-    "description": "descripción clara de qué hacer exactamente (2-3 frases)",
-    "skillRef": "habilidad que trabaja"
-  }
+  {"type": "review", "title": "...", "description": "...", "skillRef": "..."},
+  {"type": "practice", "title": "...", "description": "...", "skillRef": "..."},
+  {"type": "learn", "title": "...", "description": "...", "skillRef": "..."}
 ]
 
-Tipos:
-- learn: Estudiar/entender un concepto nuevo (para lo que aún no ha visto)
-- practice: Resolver un ejercicio práctico concreto (para lo ya estudiado)
-- review: Repasar y reforzar algo ya visto pero que salió débil en el diagnóstico
+Tipos: "learn" (concepto nuevo), "practice" (ejercicio práctico), "review" (repasar algo ya visto)
 
-REGLA CRÍTICA: Solo puedes generar tareas sobre las habilidades de la lista "DISPONIBLES AHORA".
-NUNCA sugieras habilidades que no estén en esa lista, aunque parezcan relevantes.`;
+══════════════════════════════════════════
+RESTRICCIÓN ABSOLUTA E INAMOVIBLE:
+Los "skillRef" y los temas de las tareas SOLO pueden ser de esta lista:
+${numberedList}
 
-    // Skills the student can work on right now (mastered + next in sequence)
-    const availableNames = availableSkills.map(s => `${s.name} (${s.importance})`).join(', ');
+PROHIBIDO usar cualquier tema que no esté en la lista anterior.
+Si no sabes qué generar, usa los primeros temas de la lista.
+══════════════════════════════════════════`;
 
-    // Next unmastered skill (for "learn" task)
-    const nextToLearn = availableSkills.find(s =>
-        !profileConcepts.some(c => c.toLowerCase().includes(s.name.toLowerCase()))
-    );
+    const masteredNames = masteredSkills.map(s => s.name).join(', ') || 'conceptos básicos';
+    const nextNames = nextSkills.slice(0, 2).map(s => s.name).join(', ') || skills[0]?.name;
+    const weakFiltered = relevantWeakAreas.length > 0 ? relevantWeakAreas.join(', ') : 'ninguna';
 
-    // Weak areas that are in the available list
-    const relevantWeakAreas = weakAreas.filter(w =>
-        availableSkills.some(s => s.name.toLowerCase().includes(w.toLowerCase()) || w.toLowerCase().includes(s.name.toLowerCase()))
-    );
+    const userPrompt = `Camino: ${path.title}
+Ya estudiado: ${masteredNames}
+Próximo a aprender: ${nextNames}
+Puntos débiles (de lo ya estudiado): ${weakFiltered}
 
-    const userPrompt = `Camino: ${path.title} (objetivo: ${path.jobTitle})
+Genera 3 tareas de 15-20 minutos cada una.
+- Si hay puntos débiles, pon una tarea de repaso sobre ellos.
+- Pon una tarea de práctica sobre lo ya estudiado.
+- Pon una tarea de introducción a la siguiente habilidad pendiente.
+Todos los skillRef DEBEN ser exactamente el nombre de una habilidad de la lista numerada.`;
 
-DISPONIBLES AHORA (únicas habilidades válidas para el plan):
-${availableNames}
+    const result = await deepSeekJSON<DailyTaskRaw[]>(systemPrompt, userPrompt);
 
-Áreas débiles del estudiante (solo de las disponibles): ${relevantWeakAreas.length > 0 ? relevantWeakAreas.join(', ') : 'ninguna específica'}
-Próxima habilidad a introducir: ${nextToLearn?.name ?? 'consolidar lo aprendido'}
-Conocimientos detectados: ${profileConcepts.slice(0, 8).join(', ') || 'básico'}
-
-Genera exactamente 3 tareas para hoy (sesión realista de 45-60 minutos).
-IMPORTANTE: Solo usa habilidades de la lista DISPONIBLES AHORA. Si hay áreas débiles, prioriza repasarlas.`;
-
-    return await deepSeekJSON<DailyTaskRaw[]>(systemPrompt, userPrompt);
+    // Hard validation: if any task references a skill outside the available list, fix it
+    const validNames = new Set(skills.map(s => s.name.toLowerCase()));
+    return result.map((task, i) => {
+        const isValid = validNames.has(task.skillRef.toLowerCase()) ||
+            skills.some(s => s.name.toLowerCase().includes(task.skillRef.toLowerCase().split(' ')[0]));
+        if (!isValid) {
+            // Replace with a valid skill from the available list
+            const fallback = (i === 0 ? masteredSkills[0] : nextSkills[0] ?? skills[0]);
+            return { ...task, skillRef: fallback?.name ?? skills[0]?.name ?? task.skillRef };
+        }
+        return task;
+    });
 }
