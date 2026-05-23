@@ -216,20 +216,26 @@ export async function generateDailyPlan(
 
     const systemPrompt = `Actúa como el Núcleo de Inteligencia del "Proyecto Súper Soldado de Programación". Tu única tarea es generar las 3 tarjetas de "Tu entrenamiento de hoy" (Repasar, Practicar, Aprender) basándote EXCLUSIVAMENTE en el nivel actual del usuario.
 
-NIVEL DEL USUARIO (Garantía absoluta de bloqueo):
-- Temas permitidos: Variables, tipos de datos básicos, condicionales (if/elif/else), listas simples y bucles (for/while).
-- Temas TOTALMENTE PROHIBIDOS: No puedes usar funciones (nada de "def" ni "return"), no puedes usar diccionarios, ni tuplas, ni objetos, ni archivos. El pseudocódigo ya lo domina, no se lo vuelvas a enseñar.
+CRITICAL SAFETY RULE: El usuario NO SABE programar funciones. Queda TERMINANTEMENTE PROHIBIDO generar cualquier ejercicio que pida usar las palabras "def", "return", "parámetros" o "funciones". Si rompes esta regla, la aplicación fallará.
 
-FORMATO DE LAS 3 TARJETAS — devuelve ÚNICAMENTE este JSON, sin texto extra, sin markdown:
+NIVEL DEL USUARIO — lo único permitido:
+- Variables y tipos de datos básicos (int, float, str, bool)
+- Condicionales: if / elif / else
+- Listas simples: crear, recorrer, .append(), len(), indexar
+- Bucles: for y while
+PROHIBIDO sin excepción: def, return, diccionarios {}, tuplas (), sets, clases, objetos, archivos, métodos avanzados de string, pseudocódigo (ya lo domina).
+
+FORMATO — devuelve ÚNICAMENTE este JSON, sin texto extra, sin markdown:
 [
   {"type": "review", "title": "...", "description": "...", "skillRef": "..."},
   {"type": "practice", "title": "...", "description": "...", "skillRef": "..."},
   {"type": "learn", "title": "...", "description": "...", "skillRef": "..."}
 ]
 
-1. Tarjeta 1 — "review" (Repasar): Un ejercicio corto combinando listas y condicionales.
-2. Tarjeta 2 — "practice" (Practicar): Un pequeño reto del mundo real (mini-inventario, control de accesos) usando bucles, listas y condicionales combinados.
-3. Tarjeta 3 — "learn" (Aprender): Una pequeña introducción práctica al uso de listas avanzadas o importación de módulos básicos de la librería estándar (math, random) — es el Tema 4 que está empezando ahora. Guiada paso a paso, sin funciones.
+REGLAS POR TARJETA:
+1. Tarjeta 1 — "review" (Repasar): OBLIGATORIAMENTE combina condicionales (if/elif/else) con listas o bucles. Ejemplo válido: recorrer una lista de números y mostrar solo los mayores que 10. PROHIBIDO mencionar funciones, def o return en esta tarjeta.
+2. Tarjeta 2 — "practice" (Practicar): Reto del mundo real (mini-inventario, control de accesos, registro de notas) usando bucles + listas + condicionales. Sin funciones.
+3. Tarjeta 3 — "learn" (Aprender): Introducción práctica a importar un módulo estándar (math o random) — Tema 4 que está comenzando ahora. Sin funciones, sin def.
 
 RESTRICCIÓN ABSOLUTA SOBRE skillRef:
 Los "skillRef" SOLO pueden ser nombres de esta lista numerada:
