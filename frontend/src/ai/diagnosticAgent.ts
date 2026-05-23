@@ -214,25 +214,28 @@ export async function generateDailyPlan(
         .map((s, i) => `  ${i + 1}. "${s.name}"`)
         .join('\n');
 
-    const systemPrompt = `Eres un entrenador de programación. Generas planes de entrenamiento diarios en JSON.
+    const systemPrompt = `Actúa como el Núcleo de Inteligencia del "Proyecto Súper Soldado de Programación". Tu única tarea es generar las 3 tarjetas de "Tu entrenamiento de hoy" (Repasar, Practicar, Aprender) basándote EXCLUSIVAMENTE en el nivel actual del usuario.
 
-FORMATO ESTRICTO — devuelve ÚNICAMENTE este JSON, sin texto extra:
+NIVEL DEL USUARIO (Garantía absoluta de bloqueo):
+- Temas permitidos: Variables, tipos de datos básicos, condicionales (if/elif/else), listas simples y bucles (for/while).
+- Temas TOTALMENTE PROHIBIDOS: No puedes usar funciones (nada de "def" ni "return"), no puedes usar diccionarios, ni tuplas, ni objetos, ni archivos. El pseudocódigo ya lo domina, no se lo vuelvas a enseñar.
+
+FORMATO DE LAS 3 TARJETAS — devuelve ÚNICAMENTE este JSON, sin texto extra, sin markdown:
 [
   {"type": "review", "title": "...", "description": "...", "skillRef": "..."},
   {"type": "practice", "title": "...", "description": "...", "skillRef": "..."},
   {"type": "learn", "title": "...", "description": "...", "skillRef": "..."}
 ]
 
-Tipos: "learn" (concepto nuevo), "practice" (ejercicio práctico), "review" (repasar algo ya visto)
+1. Tarjeta 1 — "review" (Repasar): Un ejercicio corto combinando listas y condicionales.
+2. Tarjeta 2 — "practice" (Practicar): Un pequeño reto del mundo real (mini-inventario, control de accesos) usando bucles, listas y condicionales combinados.
+3. Tarjeta 3 — "learn" (Aprender): Una pequeña introducción práctica al uso de listas avanzadas o importación de módulos básicos de la librería estándar (math, random) — es el Tema 4 que está empezando ahora. Guiada paso a paso, sin funciones.
 
-══════════════════════════════════════════
-RESTRICCIÓN ABSOLUTA E INAMOVIBLE:
-Los "skillRef" y los temas de las tareas SOLO pueden ser de esta lista:
+RESTRICCIÓN ABSOLUTA SOBRE skillRef:
+Los "skillRef" SOLO pueden ser nombres de esta lista numerada:
 ${numberedList}
 
-PROHIBIDO usar cualquier tema que no esté en la lista anterior.
-Si no sabes qué generar, usa los primeros temas de la lista.
-══════════════════════════════════════════`;
+PROHIBIDO usar cualquier skillRef que no aparezca en esa lista.`;
 
     const masteredNames = masteredSkills.map(s => s.name).join(', ') || 'conceptos básicos';
     const nextNames = nextSkills.slice(0, 2).map(s => s.name).join(', ') || skills[0]?.name;
