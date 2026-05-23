@@ -98,44 +98,44 @@ const PathDashboard: React.FC = () => {
     const totalTasks = dailyPlan?.tasks.length ?? 0;
 
     return (
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-5">
+        <div className="max-w-6xl mx-auto px-6 sm:px-10 lg:px-16 py-10 space-y-6">
 
-            {/* ── Compact Header ── */}
-            <div className={`bg-[#1a1a1a] border ${col.border} rounded-2xl p-5`}>
-                <div className="flex items-center justify-between gap-4 mb-4">
-                    <div className="flex items-center gap-2.5">
-                        <span className="text-xl">{path.emoji}</span>
+            {/* ── Header ── */}
+            <div className={`bg-[#1a1a1a] border ${col.border} rounded-2xl px-7 py-6`}>
+                <div className="flex items-center justify-between gap-4 mb-5">
+                    <div className="flex items-center gap-3">
+                        <span className="text-3xl">{path.emoji}</span>
                         <div>
-                            <h1 className={`text-lg font-bold ${col.text} leading-none`}>{path.title}</h1>
-                            <p className="text-xs text-light/40 mt-0.5">Objetivo: {path.jobTitle}</p>
+                            <h1 className={`text-2xl font-bold ${col.text} leading-none`}>{path.title}</h1>
+                            <p className="text-sm text-light/40 mt-1">Objetivo: {path.jobTitle}</p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <span className={`text-2xl font-bold ${col.text}`}>{pct}%</span>
+                    <div className="flex items-center gap-3">
+                        <span className={`text-4xl font-bold ${col.text}`}>{pct}%</span>
                         <button
                             onClick={() => navigate('/elegir-camino')}
-                            className="text-xs text-light/30 hover:text-light/60 border border-light/10 px-2.5 py-1 rounded-lg transition-colors"
+                            className="text-sm text-light/30 hover:text-light/60 border border-light/10 px-3 py-1.5 rounded-lg transition-colors"
                         >
                             Cambiar
                         </button>
                     </div>
                 </div>
-                <div className="w-full h-2 bg-[#0f0f0f] rounded-full overflow-hidden border border-light/10">
+                <div className="w-full h-3 bg-[#0f0f0f] rounded-full overflow-hidden border border-light/10">
                     <div className={`h-full ${col.bar} rounded-full transition-all duration-700`} style={{ width: `${pct}%` }} />
                 </div>
-                <div className="flex justify-between mt-1.5 text-xs text-light/25">
+                <div className="flex justify-between mt-2 text-sm text-light/30">
                     <span>{criticalMastered}/{criticalTotal} habilidades clave dominadas</span>
                     <span>{mastered}/{total} total</span>
                 </div>
             </div>
 
             {/* ── Plan de hoy (MAIN) ── */}
-            <div className="bg-[#1a1a1a] border border-light/10 rounded-2xl p-6">
-                <div className="flex items-center justify-between mb-5">
+            <div className="bg-[#1a1a1a] border border-light/10 rounded-2xl px-7 py-7">
+                <div className="flex items-center justify-between mb-6">
                     <div>
-                        <h2 className="text-base font-bold text-light">Tu entrenamiento de hoy</h2>
+                        <h2 className="text-xl font-bold text-light">Tu entrenamiento de hoy</h2>
                         {diagResult && (
-                            <p className="text-xs text-light/30 mt-0.5">
+                            <p className="text-sm text-light/30 mt-1">
                                 Basado en tu diagnóstico ({diagResult.score}/100)
                                 {dailyPlan && ` · ${completedCount}/${totalTasks} completadas`}
                             </p>
@@ -144,7 +144,7 @@ const PathDashboard: React.FC = () => {
                     {dailyPlan && !isGeneratingPlan && (
                         <button
                             onClick={handleGeneratePlan}
-                            className="text-xs text-light/30 hover:text-light/60 transition-colors border border-light/10 px-3 py-1.5 rounded-lg"
+                            className="text-sm text-light/30 hover:text-light/60 transition-colors border border-light/10 px-4 py-2 rounded-lg"
                         >
                             🔄 Nuevo plan
                         </button>
@@ -153,15 +153,15 @@ const PathDashboard: React.FC = () => {
 
                 {/* No plan yet */}
                 {!dailyPlan && !isGeneratingPlan && (
-                    <div className="text-center py-10">
-                        <div className="text-4xl mb-3">📋</div>
-                        <p className="text-light/60 font-semibold mb-1">¿Qué practicamos hoy?</p>
-                        <p className="text-sm text-light/30 mb-5 max-w-xs mx-auto">
+                    <div className="text-center py-16">
+                        <div className="text-5xl mb-4">📋</div>
+                        <p className="text-light/60 text-lg font-semibold mb-2">¿Qué practicamos hoy?</p>
+                        <p className="text-sm text-light/30 mb-7 max-w-sm mx-auto">
                             La IA genera 3 ejercicios personalizados según tus puntos débiles del diagnóstico.
                         </p>
                         <button
                             onClick={handleGeneratePlan}
-                            className="bg-violet-600 hover:bg-violet-500 text-white font-bold px-8 py-3 rounded-xl text-sm transition-all"
+                            className="bg-violet-600 hover:bg-violet-500 text-white font-bold px-10 py-4 rounded-xl text-base transition-all"
                         >
                             ✨ Generar plan de hoy
                         </button>
@@ -170,51 +170,50 @@ const PathDashboard: React.FC = () => {
 
                 {/* Generating */}
                 {isGeneratingPlan && (
-                    <div className="flex flex-col items-center justify-center gap-3 py-10">
-                        <div className="flex gap-1.5">
+                    <div className="flex flex-col items-center justify-center gap-4 py-16">
+                        <div className="flex gap-2">
                             {[0, 1, 2].map(i => (
-                                <span key={i} className="w-2.5 h-2.5 bg-violet-400 rounded-full animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
+                                <span key={i} className="w-3 h-3 bg-violet-400 rounded-full animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
                             ))}
                         </div>
-                        <p className="text-sm text-light/40">Creando tu rutina personalizada…</p>
+                        <p className="text-base text-light/40">Creando tu rutina personalizada…</p>
                     </div>
                 )}
 
                 {/* Plan cards */}
                 {dailyPlan && !isGeneratingPlan && (
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
                         {dailyPlan.tasks.map((task, idx) => (
                             <div
                                 key={task.id}
-                                className={`relative border rounded-2xl p-4 flex flex-col gap-3 transition-all ${task.completed ? 'opacity-40 border-light/10 bg-light/5' : taskTypeColor[task.type]}`}
+                                className={`relative border rounded-2xl p-6 flex flex-col gap-4 transition-all ${task.completed ? 'opacity-40 border-light/10 bg-light/5' : taskTypeColor[task.type]}`}
                             >
-                                {/* Task number */}
                                 <div className="flex items-center justify-between">
-                                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${taskTypeBadge[task.type]}`}>
+                                    <span className={`text-sm font-bold px-3 py-1 rounded-full ${taskTypeBadge[task.type]}`}>
                                         {taskTypeIcon[task.type]} {taskTypeName[task.type]}
                                     </span>
-                                    <span className="text-xs text-light/20 font-mono">#{idx + 1}</span>
+                                    <span className="text-sm text-light/20 font-mono">#{idx + 1}</span>
                                 </div>
 
                                 <div className="flex-1">
-                                    <p className="text-sm font-bold text-light mb-1">{task.title}</p>
-                                    <p className="text-xs text-light/40 leading-relaxed">{task.description}</p>
+                                    <p className="text-base font-bold text-light mb-2">{task.title}</p>
+                                    <p className="text-sm text-light/50 leading-relaxed">{task.description}</p>
                                 </div>
 
-                                <div className="flex flex-col gap-2 pt-1 border-t border-light/10">
+                                <div className="flex flex-col gap-2 pt-2 border-t border-light/10">
                                     {task.completed ? (
-                                        <div className="text-center text-xs text-emerald-400 font-semibold">✅ Completado · +30 XP</div>
+                                        <div className="text-center text-sm text-emerald-400 font-semibold py-1">✅ Completado · +30 XP</div>
                                     ) : (
                                         <>
                                             <button
                                                 onClick={() => goToMentor(task.title, task.description, task.skillRef)}
-                                                className="w-full bg-violet-600 hover:bg-violet-500 text-white font-bold py-2 rounded-xl text-xs transition-all"
+                                                className="w-full bg-violet-600 hover:bg-violet-500 text-white font-bold py-3 rounded-xl text-sm transition-all"
                                             >
                                                 Empezar ejercicio →
                                             </button>
                                             <button
                                                 onClick={() => handleCompleteTask(task.id)}
-                                                className="w-full text-xs text-light/25 hover:text-emerald-400 transition-colors py-1"
+                                                className="w-full text-sm text-light/25 hover:text-emerald-400 transition-colors py-1"
                                             >
                                                 Marcar como hecho
                                             </button>
@@ -229,15 +228,15 @@ const PathDashboard: React.FC = () => {
 
             {/* ── Siguiente paso si no hay plan ── */}
             {!dailyPlan && nextCritical && (
-                <div className="bg-[#1a1a1a] border border-violet-500/20 rounded-2xl p-4 flex items-center justify-between gap-4">
+                <div className="bg-[#1a1a1a] border border-violet-500/20 rounded-2xl px-7 py-5 flex items-center justify-between gap-4">
                     <div>
-                        <div className="text-xs text-violet-400 font-semibold mb-1">⚡ Siguiente habilidad clave</div>
-                        <p className="text-sm font-bold text-light">{nextCritical.name}</p>
-                        <p className="text-xs text-light/40 mt-0.5">{nextCritical.description}</p>
+                        <div className="text-sm text-violet-400 font-semibold mb-1">⚡ Siguiente habilidad clave</div>
+                        <p className="text-base font-bold text-light">{nextCritical.name}</p>
+                        <p className="text-sm text-light/40 mt-0.5">{nextCritical.description}</p>
                     </div>
                     <button
                         onClick={() => goToMentor(nextCritical.name, nextCritical.description, nextCritical.name)}
-                        className="bg-violet-600 hover:bg-violet-500 text-white font-bold text-sm px-4 py-2.5 rounded-xl transition-all flex-shrink-0"
+                        className="bg-violet-600 hover:bg-violet-500 text-white font-bold text-sm px-5 py-3 rounded-xl transition-all flex-shrink-0"
                     >
                         Practicar →
                     </button>
@@ -248,38 +247,36 @@ const PathDashboard: React.FC = () => {
             <div className="bg-[#1a1a1a] border border-light/10 rounded-2xl overflow-hidden">
                 <button
                     onClick={() => setShowSkillsDetail(v => !v)}
-                    className="w-full flex items-center justify-between px-5 py-4 hover:bg-light/5 transition-colors"
+                    className="w-full flex items-center justify-between px-7 py-5 hover:bg-light/5 transition-colors"
                 >
-                    <div className="flex items-center gap-4">
-                        <div className="text-sm font-semibold text-light/70">
-                            ✅ Dominas <span className="text-emerald-400 font-bold">{masteredSkills.length}</span>
-                            <span className="text-light/30 mx-2">·</span>
-                            📚 Por aprender <span className="text-light font-bold">{pendingSkills.length}</span>
-                        </div>
+                    <div className="text-base font-semibold text-light/70">
+                        ✅ Dominas <span className="text-emerald-400 font-bold">{masteredSkills.length}</span>
+                        <span className="text-light/30 mx-2">·</span>
+                        📚 Por aprender <span className="text-light font-bold">{pendingSkills.length}</span>
                     </div>
-                    <span className="text-xs text-light/30">{showSkillsDetail ? '▲ Ocultar' : '▼ Ver detalle'}</span>
+                    <span className="text-sm text-light/30">{showSkillsDetail ? '▲ Ocultar' : '▼ Ver detalle'}</span>
                 </button>
 
                 {showSkillsDetail && (
-                    <div className="px-5 pb-5 border-t border-light/10">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mt-4">
+                    <div className="px-7 pb-7 border-t border-light/10">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-5">
 
                             {/* Mastered */}
                             <div>
-                                <h3 className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-3">Ya dominas</h3>
+                                <h3 className="text-sm font-bold text-emerald-400 uppercase tracking-wider mb-3">Ya dominas</h3>
                                 {masteredSkills.length === 0 ? (
-                                    <p className="text-xs text-light/30 italic">
+                                    <p className="text-sm text-light/30 italic">
                                         <button onClick={() => navigate('/perfil-aprendizaje')} className="text-emerald-400 underline">Sube tus ejercicios</button> para detectar tus habilidades.
                                     </p>
                                 ) : (
-                                    <div className="space-y-1.5">
+                                    <div className="space-y-2">
                                         {masteredSkills.map(s => (
-                                            <div key={s.id} className="flex items-center gap-2 px-3 py-1.5 bg-emerald-900/10 border border-emerald-500/15 rounded-xl">
-                                                <span className="text-emerald-400 text-xs">✓</span>
+                                            <div key={s.id} className="flex items-center gap-2 px-4 py-2 bg-emerald-900/10 border border-emerald-500/15 rounded-xl">
+                                                <span className="text-emerald-400 text-sm">✓</span>
                                                 <span className="text-sm text-light/70">{s.name}</span>
                                             </div>
                                         ))}
-                                        <button onClick={() => navigate('/perfil-aprendizaje')} className="text-xs text-light/25 hover:text-emerald-400 transition-colors mt-1 pl-1">
+                                        <button onClick={() => navigate('/perfil-aprendizaje')} className="text-sm text-light/25 hover:text-emerald-400 transition-colors mt-1 pl-1">
                                             + Actualizar perfil
                                         </button>
                                     </div>
@@ -288,31 +285,31 @@ const PathDashboard: React.FC = () => {
 
                             {/* Pending */}
                             <div>
-                                <h3 className="text-xs font-bold text-light/40 uppercase tracking-wider mb-3">Por aprender</h3>
-                                <div className="space-y-1.5">
+                                <h3 className="text-sm font-bold text-light/40 uppercase tracking-wider mb-3">Por aprender</h3>
+                                <div className="space-y-2">
                                     {pendingSkills.slice(0, 8).map(s => (
-                                        <div key={s.id} className="flex items-center justify-between px-3 py-1.5 bg-light/5 border border-light/10 rounded-xl gap-2">
+                                        <div key={s.id} className="flex items-center justify-between px-4 py-2 bg-light/5 border border-light/10 rounded-xl gap-2">
                                             <div className="min-w-0">
                                                 <span className="text-sm text-light/60 truncate block">{s.name}</span>
                                                 {s.importance === 'critical' && (
                                                     <span className="text-xs text-red-400/70">clave</span>
                                                 )}
                                             </div>
-                                            <div className="flex items-center gap-2 flex-shrink-0">
+                                            <div className="flex items-center gap-3 flex-shrink-0">
                                                 {s.selfAssess && (
-                                                    <label className="flex items-center gap-1 cursor-pointer">
+                                                    <label className="flex items-center gap-1.5 cursor-pointer">
                                                         <input
                                                             type="checkbox"
                                                             checked={assessments[s.id] === true}
                                                             onChange={() => toggleAssessment(s.id)}
-                                                            className="w-3.5 h-3.5 accent-emerald-500 cursor-pointer"
+                                                            className="w-4 h-4 accent-emerald-500 cursor-pointer"
                                                         />
-                                                        <span className="text-xs text-light/25">Lo sé</span>
+                                                        <span className="text-sm text-light/25">Lo sé</span>
                                                     </label>
                                                 )}
                                                 <button
                                                     onClick={() => goToMentor(s.name, s.description, s.name)}
-                                                    className="text-xs text-violet-400/60 hover:text-violet-400 transition-colors whitespace-nowrap"
+                                                    className="text-sm text-violet-400/60 hover:text-violet-400 transition-colors whitespace-nowrap"
                                                 >
                                                     Practicar →
                                                 </button>
@@ -320,7 +317,7 @@ const PathDashboard: React.FC = () => {
                                         </div>
                                     ))}
                                     {pendingSkills.length > 8 && (
-                                        <p className="text-xs text-light/25 pl-1">+{pendingSkills.length - 8} más por aprender</p>
+                                        <p className="text-sm text-light/25 pl-1">+{pendingSkills.length - 8} más por aprender</p>
                                     )}
                                 </div>
                             </div>
