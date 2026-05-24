@@ -5,7 +5,7 @@ import { loadSelectedPath, loadSelfAssessments, saveSelfAssessments } from '../.
 import { loadKnowledgeProfile } from '../../lib/knowledgeProfile';
 import { isOnboardingComplete, getDiagnosticResult, getDailyPlan, completeTask, todayString, saveDailyPlan } from '../../lib/userProgress';
 import { generateDailyPlan } from '../../ai/diagnosticAgent';
-import { recordPractice } from '../../lib/learningMetrics';
+import { recordPractice, getHabilidadesValidadas } from '../../lib/learningMetrics';
 import { getTodayTest } from '../../lib/dailyTest';
 
 const taskTypeIcon: Record<string, string> = { learn: '📖', practice: '💻', review: '🔄' };
@@ -75,7 +75,8 @@ const PathDashboard: React.FC = () => {
         const profile = loadKnowledgeProfile();
         const concepts = profile?.concepts ?? [];
         const available = getAvailableSkills(path, concepts, assessments);
-        const tasks = await generateDailyPlan(path, diagResult?.weakAreas ?? [], concepts, available);
+        const habilidades = getHabilidadesValidadas(path, concepts, assessments);
+        const tasks = await generateDailyPlan(path, diagResult?.weakAreas ?? [], concepts, available, habilidades);
         const plan = {
             date: todayString(),
             tasks: tasks.map((t, i) => ({ ...t, id: `task-${Date.now()}-${i}`, completed: false })),

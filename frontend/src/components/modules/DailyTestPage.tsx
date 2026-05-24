@@ -3,11 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { loadSelectedPath, loadSelfAssessments } from '../../lib/selectedPath';
 import { getPathById, getAvailableSkills } from '../../data/careerPaths';
 import { loadKnowledgeProfile } from '../../lib/knowledgeProfile';
-import { loadMetrics } from '../../lib/learningMetrics';
+import { loadMetrics, getHabilidadesValidadas } from '../../lib/learningMetrics';
 import { generateDailyTest } from '../../ai/diagnosticAgent';
 import {
     TestQuestion, DailyCheckin, TestSession, EisenhowerMatrix,
-    getTodayTest, saveTodayTest, todayStr, getRecentFailedSkills, calculateMatrix,
+    getTodayTest, saveTodayTest, todayStr, getRecentFailedSkills, calculateMatrix, recordTestResult,
 } from '../../lib/dailyTest';
 
 const MOOD_LABELS: Record<number, string> = {
@@ -58,8 +58,9 @@ const DailyTestPage: React.FC = () => {
         setError('');
         try {
             const available = getAvailableSkills(path, concepts, selfAssessments);
+            const habilidades = getHabilidadesValidadas(path, concepts, selfAssessments);
             const recentFailed = getRecentFailedSkills(7);
-            const qs = await generateDailyTest(path, available, recentFailed);
+            const qs = await generateDailyTest(path, available, recentFailed, habilidades);
             setQuestions(qs);
             setStep('questions');
         } catch {
@@ -90,6 +91,7 @@ const DailyTestPage: React.FC = () => {
             matrix: mat,
         };
         saveTodayTest(session);
+        recordTestResult(pathId, questions, answers);
         setMatrix(mat);
         setSubmitted(true);
         setStep('results');

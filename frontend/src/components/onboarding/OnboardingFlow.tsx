@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getPathById } from '../../data/careerPaths';
+import { getPathById, getAvailableSkills } from '../../data/careerPaths';
+import { getHabilidadesValidadas } from '../../lib/learningMetrics';
 import { loadKnowledgeProfile, saveKnowledgeProfile } from '../../lib/knowledgeProfile';
 import { analyzeKnowledgeFromCode } from '../../ai/knowledgeAnalyzer';
 import { generateDiagnosticExam, evaluateDiagnosticExam, generateDailyPlan, DiagnosticQuestion } from '../../ai/diagnosticAgent';
@@ -86,7 +87,11 @@ const OnboardingFlow: React.FC<Props> = ({ pathId }) => {
         setIsGeneratingPlan(true);
         setStep('plan');
         const profile = loadKnowledgeProfile();
-        const tasks = await generateDailyPlan(path, evalResult?.weakAreas ?? [], profile?.concepts ?? [], path.skills);
+        const concepts = profile?.concepts ?? [];
+        const selfAssessments: Record<string, boolean> = {};
+        const available = getAvailableSkills(path, concepts, selfAssessments);
+        const habilidades = getHabilidadesValidadas(path, concepts, selfAssessments);
+        const tasks = await generateDailyPlan(path, evalResult?.weakAreas ?? [], concepts, available, habilidades);
         const plan = {
             date: todayString(),
             tasks: tasks.map((t, i) => ({ ...t, id: `task-${i}`, completed: false })),

@@ -1,4 +1,4 @@
-import { CareerPath, PathSkill, isSkillMastered } from '../data/careerPaths';
+import { CareerPath, PathSkill, isSkillMastered, getAvailableSkills } from '../data/careerPaths';
 
 const STORAGE_KEY = 'labcode_learning_metrics';
 
@@ -196,4 +196,25 @@ export function totalChallengesSolved(metrics: LearningMetrics): number {
 
 export function totalXpFromMetrics(metrics: LearningMetrics): number {
     return metrics.dailyMetrics.reduce((s, d) => s + d.xpEarned, 0);
+}
+
+// ─── State-Driven Prompting ───────────────────────────────────────────────────
+
+/**
+ * Returns the list of skill names the AI is allowed to use in generated content.
+ * Derived from getAvailableSkills() (curriculum-gated). Every skill in the current
+ * window is "validated" — the AI may only reference concepts from this list.
+ * Falls back to the first 3 curriculum skills for brand-new users with no profile.
+ */
+export function getHabilidadesValidadas(
+    path: CareerPath,
+    profileConcepts: string[],
+    selfAssessments: Record<string, boolean>
+): string[] {
+    const available = getAvailableSkills(path, profileConcepts, selfAssessments);
+    if (available.length === 0) {
+        const sorted = [...path.skills].sort((a, b) => a.order - b.order);
+        return sorted.slice(0, 3).map(s => s.name);
+    }
+    return available.map(s => s.name);
 }

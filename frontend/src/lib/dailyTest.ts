@@ -1,5 +1,5 @@
 import { CareerPath, isSkillMastered } from '../data/careerPaths';
-import { LearningMetrics } from './learningMetrics';
+import { LearningMetrics, loadMetrics, saveMetrics } from './learningMetrics';
 
 const STORAGE_KEY = 'labcode_daily_tests';
 
@@ -104,6 +104,45 @@ export function getTestStreakDays(): number {
         d.setDate(d.getDate() - 1);
     }
     return streak;
+}
+
+// ─── Test Result Recording ────────────────────────────────────────────────────
+
+/**
+ * Updates skillMastery in LearningMetrics after a test is submitted.
+ * Correct answer → +15 % mastery (may unlock the next curriculum topic).
+ * Wrong answer   → +3 % (small signal: the user engaged with the concept).
+ * This is the auto-update trigger: once masteryPct reaches ≥80 the skill is
+ * considered consolidated and the Eisenhower Matrix reclassifies it to Q3/Q4.
+ */
+export function recordTestResult(
+    pathId: string,
+    questions: TestQuestion[],
+    answers: Record<string, 'A' | 'B' | 'C'>
+): void {
+    const metrics = loadMetrics(pathId);
+    const now = new Date().toISOString();
+
+    for (const q of questions) {
+        const isCorrect = answers[q.id] === q.correctAnswer;
+        const boost = isCorrect ? 15 : 3;
+        const existing = metrics.skillMastery[q.skillRef];
+        if (existing) {
+            existing.masteryPct = Math.min(100, existing.masteryPct + boost);
+            existing.practiceCount += 1;
+            existing.lastPracticed = now;
+        } else {
+            metrics.skillMastery[q.skillRef] = {
+                skillId: q.skillRef,
+                skillName: q.skillRef,
+                masteryPct: isCorrect ? 25 : 10,
+                practiceCount: 1,
+                lastPracticed: now,
+            };
+        }
+    }
+
+    saveMetrics(metrics);
 }
 
 // ─── Eisenhower Matrix Algorithm ──────────────────────────────────────────────

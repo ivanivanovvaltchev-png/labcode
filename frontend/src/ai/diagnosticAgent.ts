@@ -192,20 +192,22 @@ export async function generateDailyPlan(
     path: CareerPath,
     _weakAreas: string[],
     profileConcepts: string[],
-    availableSkills: { name: string; importance: string; order: number }[]
+    availableSkills: { name: string; importance: string; order: number }[],
+    habilidadesValidadas: string[]
 ): Promise<DailyTaskRaw[]> {
-    // If no available skills, fall back to all skills
     const skills = availableSkills.length > 0 ? availableSkills : path.skills;
 
-    // Keep these for post-generation validation only
-    const masteredSkills = skills.filter(s =>
-        profileConcepts.some(c =>
-            s.name.toLowerCase().split(' ').some(word => word.length > 3 && c.toLowerCase().includes(word))
-        )
-    );
-    const nextSkills = skills.filter(s => !masteredSkills.find(m => m.name === s.name));
+    // Build the live allowlist for the AI — only concepts the student has unlocked
+    const allowList = habilidadesValidadas.length > 0
+        ? habilidadesValidadas.join(', ')
+        : skills.slice(0, 5).map(s => s.name).join(', ');
 
-    const systemPrompt = `Tu único objetivo es generar un JSON con exactamente 3 tarjetas. Tienes prohibido usar los términos "funciones", "parámetros", "retornos" o "def" en cualquier parte de la respuesta.
+    const systemPrompt = `Tu único objetivo es generar un JSON con exactamente 3 tarjetas.
+
+REGLA ABSOLUTA DE CONTENIDO: Los conceptos, ejemplos de código y sintaxis que uses en las descriptions deben pertenecer ÚNICAMENTE a esta lista de habilidades validadas del estudiante:
+${allowList}
+
+Todo lo demás (funciones def/return, diccionarios, clases, SQL, tuplas, excepciones, POO, o cualquier concepto no listado arriba) está ESTRICTAMENTE PROHIBIDO. Romperá la aplicación y anulará el ejercicio.
 
 FORMATO DE RESPUESTA — devuelve ÚNICAMENTE este JSON, sin texto extra, sin markdown, sin explicaciones:
 [
@@ -214,28 +216,33 @@ FORMATO DE RESPUESTA — devuelve ÚNICAMENTE este JSON, sin texto extra, sin ma
   {"type": "learn",    "title": "Introducción a Módulos Básicos",   "description": "...", "skillRef": "Arrays y módulos"}
 ]
 
-Los campos "type", "title" y "skillRef" son FIJOS. Solo debes rellenar "description" con el enunciado concreto de cada tarjeta siguiendo estas reglas estrictas:
+Los campos "type", "title" y "skillRef" son FIJOS. Solo debes rellenar "description" con el enunciado concreto de cada tarjeta:
 
 TARJETA 1 — type:"review", title:"Repaso de Bucles y Condicionales"
-description: Escribe un enunciado concreto donde el usuario deba recorrer una lista de datos (strings o números ya definidos en el código) con un bucle for o while, y usar if/elif/else para filtrar o clasificar cada elemento. Ejemplo válido: "Dada la lista [12, 5, 8, 20, 3], recórrela con un bucle for y muestra si cada número es mayor, menor o igual a 10." Varía el escenario en cada generación (precios, temperaturas, notas, edades, stocks). PROHIBIDO: mencionar def, return, pseudocódigo o cualquier tema avanzado.
+description: Escribe un enunciado donde el usuario recorra una lista de datos (strings o números definidos en el código) con un bucle for o while, y use if/elif/else para filtrar o clasificar cada elemento. Varía el escenario (precios, temperaturas, notas, edades, stocks).
 
 TARJETA 2 — type:"practice", title:"Proyecto Práctico de Consola"
-description: Escribe un enunciado de mini-programa interactivo que use un bucle while con un menú numérico (opciones 1, 2, 3... y una opción para salir). El programa debe gestionar una lista que el usuario va construyendo con input(). Escenarios válidos: lista de la compra, registro de temperaturas, control de asistencia, inventario simple. PROHIBIDO: def, return, diccionarios, pseudocódigo.
+description: Escribe un enunciado de mini-programa interactivo con bucle while, menú numérico (opciones 1, 2, 3 y salir), y una lista que el usuario construye con input(). Escenarios: lista de la compra, control de temperaturas, registro de notas, inventario.
 
 TARJETA 3 — type:"learn", title:"Introducción a Módulos Básicos"
-description: Escribe un enunciado guiado paso a paso para usar "import random" o "import math" (Tema 4 del Máster). El ejercicio debe combinar el módulo con una lista y un bucle for. Ejemplo válido: generar una lista de N números aleatorios con random.randint y luego filtrarlos. PROHIBIDO: pseudocódigo, def, return, ordenación abstracta matemática.`;
+description: Escribe un enunciado guiado paso a paso para usar "import random" o "import math" con una lista y un bucle for. Varía el ejercicio: generar números aleatorios, calcular raíces cuadradas, encontrar máximos, filtrar valores.`;
 
-    const userPrompt = `Genera las 3 tarjetas siguiendo exactamente el formato y las reglas del system prompt. Varía el escenario concreto de la description para que no se repita siempre el mismo ejemplo. Devuelve solo el JSON.`;
+    const userPrompt = `Genera las 3 tarjetas. Varía el escenario de la description para que no se repita siempre el mismo ejemplo. Devuelve solo el JSON.`;
 
     const result = await deepSeekJSON<DailyTaskRaw[]>(systemPrompt, userPrompt);
 
     // Hard validation: if any task references a skill outside the available list, fix it
     const validNames = new Set(skills.map(s => s.name.toLowerCase()));
+    const masteredSkills = skills.filter(s =>
+        profileConcepts.some(c =>
+            s.name.toLowerCase().split(' ').some(word => word.length > 3 && c.toLowerCase().includes(word))
+        )
+    );
+    const nextSkills = skills.filter(s => !masteredSkills.find(m => m.name === s.name));
     return result.map((task, i) => {
         const isValid = validNames.has(task.skillRef.toLowerCase()) ||
             skills.some(s => s.name.toLowerCase().includes(task.skillRef.toLowerCase().split(' ')[0]));
         if (!isValid) {
-            // Replace with a valid skill from the available list
             const fallback = (i === 0 ? masteredSkills[0] : nextSkills[0] ?? skills[0]);
             return { ...task, skillRef: fallback?.name ?? skills[0]?.name ?? task.skillRef };
         }
@@ -253,7 +260,8 @@ description: Escribe un enunciado guiado paso a paso para usar "import random" o
 export async function generateDailyTest(
     _path: CareerPath,
     availableSkills: PathSkill[],
-    recentFailedSkills: string[]
+    recentFailedSkills: string[],
+    habilidadesValidadas: string[]
 ): Promise<TestQuestion[]> {
     // Pick up to 3 skills to test: failed ones first, then random from available
     const failed = availableSkills.filter(s => recentFailedSkills.includes(s.name) || recentFailedSkills.includes(s.id));
@@ -263,15 +271,17 @@ export async function generateDailyTest(
 
     const skillList = testSkills.map(s => `"${s.name}"`).join(', ');
 
+    // Build live allowlist — AI may only touch validated concepts
+    const allowList = habilidadesValidadas.length > 0
+        ? habilidadesValidadas.join(', ')
+        : availableSkills.slice(0, 5).map(s => s.name).join(', ');
+
     const systemPrompt = `Eres un evaluador de teoría de programación Python. Generas preguntas de opción múltiple (A, B, C) sobre conceptos teóricos.
 
-RESTRICCIONES ABSOLUTAS — solo preguntas sobre:
-- Variables, tipos de datos básicos (int, float, str, bool)
-- Condicionales (if/elif/else)
-- Listas (métodos, indexación, slicing)
-- Bucles for y while
-- Módulos básicos (import math, import random)
-PROHIBIDO: funciones (def/return), diccionarios, tuplas, sets, clases, excepciones, archivos.
+REGLA ABSOLUTA: Solo puedes generar preguntas sobre conceptos de esta lista de habilidades validadas del estudiante:
+${allowList}
+
+Todo lo demás (funciones def/return, diccionarios, tuplas, sets, clases, excepciones, archivos, SQL, POO, o cualquier concepto no listado arriba) está ESTRICTAMENTE PROHIBIDO — aunque parezca relevante o útil.
 
 FORMATO — devuelve ÚNICAMENTE un JSON array sin texto extra ni markdown:
 [
