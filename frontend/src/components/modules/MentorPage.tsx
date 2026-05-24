@@ -6,6 +6,7 @@ import { loadCompletedSessions, saveCompletedSession, CompletedSession } from '.
 import { loadSelectedPath, loadSelfAssessments } from '../../lib/selectedPath';
 import { getPathById, isSkillMastered } from '../../data/careerPaths';
 import { generateSkillExercise } from '../../ai/diagnosticAgent';
+import { recordMentorSession } from '../../lib/learningMetrics';
 
 const STORAGE_KEY = 'mentor_session';
 
@@ -127,6 +128,20 @@ const MentorPage: React.FC = () => {
     }, [messages, exercise, exerciseSubmitted, currentSkillContext]);
 
     const isCompleted = manuallyCompleted || messages.some(m => m.role === 'assistant' && m.content.includes(TAG));
+
+    // Record session completion once when isCompleted first becomes true
+    const completionRecordedRef = useRef(false);
+    useEffect(() => {
+        if (isCompleted && !completionRecordedRef.current && currentSkillContext) {
+            completionRecordedRef.current = true;
+            const pathId = loadSelectedPath();
+            const path = pathId ? getPathById(pathId) : null;
+            if (pathId) {
+                const skill = path?.skills.find(s => s.name === currentSkillContext);
+                recordMentorSession(pathId, skill?.id ?? currentSkillContext, currentSkillContext);
+            }
+        }
+    }, [isCompleted, currentSkillContext]);
     const stripTag = (text: string) => text.replace(TAG, '').trim();
 
     const resumeSession = () => {

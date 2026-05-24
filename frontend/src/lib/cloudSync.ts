@@ -8,6 +8,7 @@ const KEYS = {
     knowledgeProfile: 'user_knowledge_profile',
     completedSessions: 'mentor_completed_sessions',
     mentorSession: 'mentor_session',
+    learningMetrics: 'labcode_learning_metrics',
 };
 
 function safeJson<T>(raw: string | null, fallback: T): T {
@@ -40,6 +41,7 @@ export async function pullFromCloud(userId: string): Promise<void> {
     if (data.selected_path) localStorage.setItem(KEYS.selectedPath, data.selected_path as string);
     if (data.knowledge_profile != null) localStorage.setItem(KEYS.knowledgeProfile, JSON.stringify(data.knowledge_profile));
     if (data.completed_sessions != null) localStorage.setItem(KEYS.completedSessions, JSON.stringify(data.completed_sessions));
+    if (data.learning_metrics != null) localStorage.setItem(KEYS.learningMetrics, JSON.stringify(data.learning_metrics));
     if (data.self_assessments != null) {
         const sa = data.self_assessments as Record<string, Record<string, boolean>>;
         Object.entries(sa).forEach(([pathId, vals]) => {
@@ -54,6 +56,7 @@ export async function pushToCloud(userId: string): Promise<void> {
     const completedSessions = safeJson(localStorage.getItem(KEYS.completedSessions), []);
     const selectedPath = localStorage.getItem(KEYS.selectedPath);
     const selfAssessments = getAllSelfAssessments();
+    const learningMetrics = safeJson(localStorage.getItem(KEYS.learningMetrics), null);
 
     await supabase.from('user_data').upsert({
         user_id: userId,
@@ -62,6 +65,7 @@ export async function pushToCloud(userId: string): Promise<void> {
         knowledge_profile: knowledgeProfile,
         completed_sessions: completedSessions,
         self_assessments: selfAssessments,
+        learning_metrics: learningMetrics,
         updated_at: new Date().toISOString(),
     });
 }

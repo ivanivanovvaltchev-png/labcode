@@ -5,6 +5,7 @@ import { loadSelectedPath, loadSelfAssessments, saveSelfAssessments } from '../.
 import { loadKnowledgeProfile } from '../../lib/knowledgeProfile';
 import { isOnboardingComplete, getDiagnosticResult, getDailyPlan, completeTask, todayString, saveDailyPlan } from '../../lib/userProgress';
 import { generateDailyPlan } from '../../ai/diagnosticAgent';
+import { recordPractice } from '../../lib/learningMetrics';
 
 const taskTypeIcon: Record<string, string> = { learn: '📖', practice: '💻', review: '🔄' };
 const taskTypeName: Record<string, string> = { learn: 'Aprender', practice: 'Practicar', review: 'Repasar' };
@@ -86,6 +87,12 @@ const PathDashboard: React.FC = () => {
     const handleCompleteTask = (taskId: string) => {
         if (!pathId) return;
         completeTask(pathId, taskId);
+        // Record practice for the completed skill
+        const task = dailyPlan?.tasks.find(t => t.id === taskId);
+        if (task) {
+            const skill = path?.skills.find(s => s.name === task.skillRef);
+            recordPractice(pathId, skill?.id ?? task.skillRef, task.skillRef);
+        }
         setDailyPlan(getDailyPlan(pathId));
     };
 

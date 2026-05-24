@@ -1,5 +1,31 @@
 const DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions";
 
+// ─── File extraction ──────────────────────────────────────────────────────────
+
+/**
+ * Accepts .py, .txt, or .ipynb content and returns clean Python code string.
+ * For .ipynb: extracts only code cells, discards markdown and outputs.
+ */
+export function extractCodeFromFile(filename: string, raw: string): string {
+    if (filename.endsWith('.ipynb')) {
+        try {
+            const nb = JSON.parse(raw) as {
+                cells: Array<{ cell_type: string; source: string | string[] }>;
+            };
+            const codeCells = nb.cells
+                .filter(c => c.cell_type === 'code')
+                .map(c => (Array.isArray(c.source) ? c.source.join('') : c.source))
+                .filter(src => src.trim().length > 0);
+            return `# Extraído de ${filename} (${codeCells.length} celda${codeCells.length !== 1 ? 's' : ''} de código)\n\n`
+                + codeCells.join('\n\n# ───────────────────────\n\n');
+        } catch {
+            return raw; // fallback: treat as plain text
+        }
+    }
+    // .py or .txt — return as-is
+    return raw;
+}
+
 export interface KnowledgeAnalysis {
     concepts: string[];
     summary: string;
