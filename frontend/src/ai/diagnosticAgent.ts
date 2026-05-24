@@ -189,30 +189,20 @@ ${JSON.stringify(questionsAndAnswers, null, 2)}`;
 
 export async function generateDailyPlan(
     path: CareerPath,
-    weakAreas: string[],
+    _weakAreas: string[],
     profileConcepts: string[],
     availableSkills: { name: string; importance: string; order: number }[]
 ): Promise<DailyTaskRaw[]> {
     // If no available skills, fall back to all skills
     const skills = availableSkills.length > 0 ? availableSkills : path.skills;
 
-    // Separate mastered (review/practice candidates) from next-to-learn
+    // Keep these for post-generation validation only
     const masteredSkills = skills.filter(s =>
         profileConcepts.some(c =>
             s.name.toLowerCase().split(' ').some(word => word.length > 3 && c.toLowerCase().includes(word))
         )
     );
     const nextSkills = skills.filter(s => !masteredSkills.find(m => m.name === s.name));
-
-    // Only weak areas that are in available skills
-    const relevantWeakAreas = weakAreas.filter(w =>
-        skills.some(s => s.name.toLowerCase().includes(w.toLowerCase().split(' ')[0]))
-    );
-
-    // Build numbered list — LLMs respect numbered lists much better
-    const numberedList = skills
-        .map((s, i) => `  ${i + 1}. "${s.name}"`)
-        .join('\n');
 
     const systemPrompt = `Tu único objetivo es generar un JSON con exactamente 3 tarjetas. Tienes prohibido usar los términos "funciones", "parámetros", "retornos" o "def" en cualquier parte de la respuesta.
 
