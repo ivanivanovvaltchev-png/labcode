@@ -6,6 +6,7 @@ import { loadKnowledgeProfile } from '../../lib/knowledgeProfile';
 import { isOnboardingComplete, getDiagnosticResult, getDailyPlan, completeTask, todayString, saveDailyPlan } from '../../lib/userProgress';
 import { generateDailyPlan } from '../../ai/diagnosticAgent';
 import { recordPractice } from '../../lib/learningMetrics';
+import { getTodayTest } from '../../lib/dailyTest';
 
 const taskTypeIcon: Record<string, string> = { learn: '📖', practice: '💻', review: '🔄' };
 const taskTypeName: Record<string, string> = { learn: 'Aprender', practice: 'Practicar', review: 'Repasar' };
@@ -66,6 +67,7 @@ const PathDashboard: React.FC = () => {
     const masteredSkills = path.skills.filter(s => isSkillMastered(s, profileConcepts, assessments));
     const pendingSkills = path.skills.filter(s => !isSkillMastered(s, profileConcepts, assessments));
     const nextCritical = pendingSkills.find(s => s.importance === 'critical');
+    const todayTest = getTodayTest();
 
     const handleGeneratePlan = async () => {
         if (!pathId || !path) return;
@@ -134,6 +136,33 @@ const PathDashboard: React.FC = () => {
                     <span>{criticalMastered}/{criticalTotal} habilidades clave dominadas</span>
                     <span>{mastered}/{total} total</span>
                 </div>
+            </div>
+
+            {/* ── Test Diario prompt ── */}
+            <div className={`border rounded-2xl px-7 py-5 flex items-center justify-between gap-4 ${todayTest?.score !== null && todayTest ? 'border-emerald-500/20 bg-emerald-900/5' : 'border-violet-500/20 bg-violet-900/5'}`}>
+                <div className="flex items-center gap-4">
+                    <span className="text-3xl">{todayTest?.score !== null && todayTest ? '✅' : '🧪'}</span>
+                    <div>
+                        <p className="text-base font-bold text-light">
+                            {todayTest?.score !== null && todayTest ? `Test completado · ${todayTest.score}/100` : 'Test Diario pendiente'}
+                        </p>
+                        <p className="text-sm text-light/40">
+                            {todayTest?.score !== null && todayTest
+                                ? `Matrix de Eisenhower actualizada · Q1: ${todayTest.matrix?.Q1_urgent_important.length ?? 0} urgentes`
+                                : 'Active Recall + Matriz de prioridades · ~5 min'}
+                        </p>
+                    </div>
+                </div>
+                <button
+                    onClick={() => navigate('/test-diario')}
+                    className={`font-bold text-sm px-5 py-2.5 rounded-xl transition-all flex-shrink-0 ${
+                        todayTest?.score !== null && todayTest
+                            ? 'bg-emerald-900/30 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-900/50'
+                            : 'bg-violet-600 hover:bg-violet-500 text-white'
+                    }`}
+                >
+                    {todayTest?.score !== null && todayTest ? 'Ver resultados →' : 'Hacer test →'}
+                </button>
             </div>
 
             {/* ── Plan de hoy (MAIN) ── */}

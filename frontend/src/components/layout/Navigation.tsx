@@ -82,6 +82,10 @@ const Navigation: React.FC<NavigationProps> = ({ user = 'Estudiante', xp = 0, us
                         📂 <span className="hidden lg:inline">Mi Perfil</span>
                     </Link>
 
+                    <Link to="/test-diario" className="text-sm font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1.5 bg-amber-900/20 px-3 py-1.5 rounded-lg border border-amber-500/30 transition-colors">
+                        🧪 <span className="hidden lg:inline">Test</span>
+                    </Link>
+
                     <Link to="/error-test" className="text-sm font-bold text-red-400 hover:text-red-300 flex items-center gap-1.5 bg-red-900/20 px-3 py-1.5 rounded-lg border border-red-500/30 transition-colors">
                         ⚠️ <span className="hidden lg:inline">Errores</span>
                     </Link>

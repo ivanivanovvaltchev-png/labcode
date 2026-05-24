@@ -1,4 +1,5 @@
-import { CareerPath } from '../data/careerPaths';
+import { CareerPath, PathSkill } from '../data/careerPaths';
+import { TestQuestion } from '../lib/dailyTest';
 
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions';
 
@@ -240,4 +241,60 @@ description: Escribe un enunciado guiado paso a paso para usar "import random" o
         }
         return task;
     });
+}
+
+// ─── Daily Mini-Test Generator ────────────────────────────────────────────────
+
+/**
+ * Generates 3–5 multiple-choice theory questions for the daily Active Recall test.
+ * Questions cover only skills within the student's current curriculum window.
+ * Prioritises skills that have been failing recently (recentFailedSkills).
+ */
+export async function generateDailyTest(
+    _path: CareerPath,
+    availableSkills: PathSkill[],
+    recentFailedSkills: string[]
+): Promise<TestQuestion[]> {
+    // Pick up to 3 skills to test: failed ones first, then random from available
+    const failed = availableSkills.filter(s => recentFailedSkills.includes(s.name) || recentFailedSkills.includes(s.id));
+    const others = availableSkills.filter(s => !failed.find(f => f.id === s.id));
+    const shuffled = [...failed, ...others.sort(() => Math.random() - 0.5)];
+    const testSkills = shuffled.slice(0, 3);
+
+    const skillList = testSkills.map(s => `"${s.name}"`).join(', ');
+
+    const systemPrompt = `Eres un evaluador de teoría de programación Python. Generas preguntas de opción múltiple (A, B, C) sobre conceptos teóricos.
+
+RESTRICCIONES ABSOLUTAS — solo preguntas sobre:
+- Variables, tipos de datos básicos (int, float, str, bool)
+- Condicionales (if/elif/else)
+- Listas (métodos, indexación, slicing)
+- Bucles for y while
+- Módulos básicos (import math, import random)
+PROHIBIDO: funciones (def/return), diccionarios, tuplas, sets, clases, excepciones, archivos.
+
+FORMATO — devuelve ÚNICAMENTE un JSON array sin texto extra ni markdown:
+[
+  {
+    "id": "q1",
+    "question": "Pregunta teórica clara y concisa",
+    "options": { "A": "opción A", "B": "opción B", "C": "opción C" },
+    "correctAnswer": "A",
+    "explanation": "Explicación breve de por qué esa es la respuesta correcta",
+    "skillRef": "nombre exacto del skill evaluado"
+  }
+]
+
+REGLAS DE CALIDAD:
+- Las preguntas deben evaluar la TEORÍA (qué hace, por qué, cuándo usar), no pedir escribir código.
+- Ejemplo válido: "¿Qué devuelve list.append() en Python?" → A: None B: la lista C: el elemento añadido
+- Las opciones incorrectas deben ser plausibles (errores comunes reales, no tonterías).
+- Una pregunta por skill de la lista recibida.`;
+
+    const userPrompt = `Genera exactamente ${testSkills.length} preguntas de teoría sobre estos skills: ${skillList}.
+${recentFailedSkills.length > 0 ? `El estudiante ha fallado recientemente en: ${recentFailedSkills.join(', ')}. Prioriza esos conceptos.` : ''}
+Varía el tipo de pregunta (¿qué hace?, ¿cuándo usar?, ¿cuál es el resultado?, ¿qué error da?).`;
+
+    const result = await deepSeekJSON<TestQuestion[]>(systemPrompt, userPrompt);
+    return result.slice(0, 5); // safety cap
 }
