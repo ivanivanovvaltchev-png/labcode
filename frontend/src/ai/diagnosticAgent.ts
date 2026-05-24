@@ -214,49 +214,27 @@ export async function generateDailyPlan(
         .map((s, i) => `  ${i + 1}. "${s.name}"`)
         .join('\n');
 
-    const systemPrompt = `Actúa como el Núcleo de Inteligencia del "Proyecto Súper Soldado de Programación". Tu única tarea es generar las 3 tarjetas de "Tu entrenamiento de hoy" (Repasar, Practicar, Aprender) basándote EXCLUSIVAMENTE en el nivel actual del usuario.
+    const systemPrompt = `Tu único objetivo es generar un JSON con exactamente 3 tarjetas. Tienes prohibido usar los términos "funciones", "parámetros", "retornos" o "def" en cualquier parte de la respuesta.
 
-CRITICAL SAFETY RULE: El usuario NO SABE programar funciones. Queda TERMINANTEMENTE PROHIBIDO generar cualquier ejercicio que pida usar las palabras "def", "return", "parámetros" o "funciones". Si rompes esta regla, la aplicación fallará.
-
-NIVEL DEL USUARIO — lo único permitido:
-- Variables y tipos de datos básicos (int, float, str, bool)
-- Condicionales: if / elif / else
-- Listas simples: crear, recorrer, .append(), len(), indexar
-- Bucles: for y while
-PROHIBIDO sin excepción: def, return, diccionarios {}, tuplas (), sets, clases, objetos, archivos, métodos avanzados de string, pseudocódigo (ya lo domina).
-
-FORMATO — devuelve ÚNICAMENTE este JSON, sin texto extra, sin markdown:
+FORMATO DE RESPUESTA — devuelve ÚNICAMENTE este JSON, sin texto extra, sin markdown, sin explicaciones:
 [
-  {"type": "review", "title": "...", "description": "...", "skillRef": "..."},
-  {"type": "practice", "title": "...", "description": "...", "skillRef": "..."},
-  {"type": "learn", "title": "...", "description": "...", "skillRef": "..."}
+  {"type": "review",   "title": "Repaso de Bucles y Condicionales", "description": "...", "skillRef": "Bucle for e iteración"},
+  {"type": "practice", "title": "Proyecto Práctico de Consola",     "description": "...", "skillRef": "Listas"},
+  {"type": "learn",    "title": "Introducción a Módulos Básicos",   "description": "...", "skillRef": "Arrays y módulos"}
 ]
 
-REGLAS POR TARJETA:
-1. Tarjeta 1 — "review" (Repasar): OBLIGATORIAMENTE combina condicionales (if/elif/else) con listas o bucles. Ejemplo válido: recorrer una lista de números y mostrar solo los mayores que 10. PROHIBIDO mencionar funciones, def o return en esta tarjeta.
-2. Tarjeta 2 — "practice" (Practicar): Reto del mundo real (mini-inventario, control de accesos, registro de notas) usando bucles + listas + condicionales. Sin funciones.
-3. Tarjeta 3 — "learn" (Aprender): Introducción práctica a importar un módulo estándar (math o random) — Tema 4 que está comenzando ahora. Sin funciones, sin def.
+Los campos "type", "title" y "skillRef" son FIJOS. Solo debes rellenar "description" con el enunciado concreto de cada tarjeta siguiendo estas reglas estrictas:
 
-RESTRICCIÓN ABSOLUTA SOBRE skillRef:
-Los "skillRef" SOLO pueden ser nombres de esta lista numerada:
-${numberedList}
+TARJETA 1 — type:"review", title:"Repaso de Bucles y Condicionales"
+description: Escribe un enunciado concreto donde el usuario deba recorrer una lista de datos (strings o números ya definidos en el código) con un bucle for o while, y usar if/elif/else para filtrar o clasificar cada elemento. Ejemplo válido: "Dada la lista [12, 5, 8, 20, 3], recórrela con un bucle for y muestra si cada número es mayor, menor o igual a 10." Varía el escenario en cada generación (precios, temperaturas, notas, edades, stocks). PROHIBIDO: mencionar def, return, pseudocódigo o cualquier tema avanzado.
 
-PROHIBIDO usar cualquier skillRef que no aparezca en esa lista.`;
+TARJETA 2 — type:"practice", title:"Proyecto Práctico de Consola"
+description: Escribe un enunciado de mini-programa interactivo que use un bucle while con un menú numérico (opciones 1, 2, 3... y una opción para salir). El programa debe gestionar una lista que el usuario va construyendo con input(). Escenarios válidos: lista de la compra, registro de temperaturas, control de asistencia, inventario simple. PROHIBIDO: def, return, diccionarios, pseudocódigo.
 
-    const masteredNames = masteredSkills.map(s => s.name).join(', ') || 'conceptos básicos';
-    const nextNames = nextSkills.slice(0, 2).map(s => s.name).join(', ') || skills[0]?.name;
-    const weakFiltered = relevantWeakAreas.length > 0 ? relevantWeakAreas.join(', ') : 'ninguna';
+TARJETA 3 — type:"learn", title:"Introducción a Módulos Básicos"
+description: Escribe un enunciado guiado paso a paso para usar "import random" o "import math" (Tema 4 del Máster). El ejercicio debe combinar el módulo con una lista y un bucle for. Ejemplo válido: generar una lista de N números aleatorios con random.randint y luego filtrarlos. PROHIBIDO: pseudocódigo, def, return, ordenación abstracta matemática.`;
 
-    const userPrompt = `Camino: ${path.title}
-Ya estudiado: ${masteredNames}
-Próximo a aprender: ${nextNames}
-Puntos débiles (de lo ya estudiado): ${weakFiltered}
-
-Genera 3 tareas de 15-20 minutos cada una.
-- Si hay puntos débiles, pon una tarea de repaso sobre ellos.
-- Pon una tarea de práctica sobre lo ya estudiado.
-- Pon una tarea de introducción a la siguiente habilidad pendiente.
-Todos los skillRef DEBEN ser exactamente el nombre de una habilidad de la lista numerada.`;
+    const userPrompt = `Genera las 3 tarjetas siguiendo exactamente el formato y las reglas del system prompt. Varía el escenario concreto de la description para que no se repita siempre el mismo ejemplo. Devuelve solo el JSON.`;
 
     const result = await deepSeekJSON<DailyTaskRaw[]>(systemPrompt, userPrompt);
 
