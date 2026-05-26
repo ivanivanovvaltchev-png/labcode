@@ -83,6 +83,11 @@ export function saveTodayTest(session: TestSession): void {
     saveTestHistory([...history, session]);
 }
 
+/** Removes today's test session so the user can regenerate a fresh one. */
+export function clearTodayTest(): void {
+    saveTestHistory(loadTestHistory().filter(s => s.date !== todayStr()));
+}
+
 export function getRecentFailedSkills(days = 7): string[] {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - days);
@@ -202,6 +207,9 @@ export function calculateMatrix(
 
     for (const skill of sorted) {
         if (used.has(skill.id)) continue;
+        // selfAssess skills (Git, SQL, Pseudocódigo) need human confirmation — the AI
+        // cannot test or remediate them, so they must not appear in Q1/Q2/Q3/Q4.
+        if (skill.selfAssess) continue;
         const m = metrics.skillMastery[skill.id];
         const mastery = m?.masteryPct ?? 0;
         const isInWindow = skill.order <= maxMasteredOrder + 2;

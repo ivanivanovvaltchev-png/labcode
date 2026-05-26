@@ -288,9 +288,13 @@ export async function generateDailyTest(
     recentFailedSkills: string[],
     habilidadesValidadas: string[]
 ): Promise<TestQuestion[]> {
+    // Only test skills the AI can generate content for — exclude selfAssess skills
+    // (Git, SQL, Pseudocódigo) which require human confirmation, not AI testing.
+    const testablePool = availableSkills.filter(s => !s.selfAssess);
+
     // Pick up to 3 skills to test: failed ones first, then random from available
-    const failed = availableSkills.filter(s => recentFailedSkills.includes(s.name) || recentFailedSkills.includes(s.id));
-    const others = availableSkills.filter(s => !failed.find(f => f.id === s.id));
+    const failed = testablePool.filter(s => recentFailedSkills.includes(s.name) || recentFailedSkills.includes(s.id));
+    const others = testablePool.filter(s => !failed.find(f => f.id === s.id));
     const shuffled = [...failed, ...others.sort(() => Math.random() - 0.5)];
     const testSkills = shuffled.slice(0, 3);
 

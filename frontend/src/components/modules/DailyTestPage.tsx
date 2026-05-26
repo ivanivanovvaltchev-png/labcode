@@ -3,11 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { loadSelectedPath, loadSelfAssessments } from '../../lib/selectedPath';
 import { getPathById, getAvailableSkills } from '../../data/careerPaths';
 import { loadKnowledgeProfile } from '../../lib/knowledgeProfile';
-import { loadMetrics, getHabilidadesValidadas } from '../../lib/learningMetrics';
+import { getHabilidadesValidadas, loadMetrics } from '../../lib/learningMetrics';
 import { generateDailyTest } from '../../ai/diagnosticAgent';
 import {
     TestQuestion, DailyCheckin, TestSession, EisenhowerMatrix,
-    getTodayTest, saveTodayTest, todayStr, getRecentFailedSkills, calculateMatrix, recordTestResult,
+    getTodayTest, saveTodayTest, todayStr, getRecentFailedSkills,
+    calculateMatrix, recordTestResult, clearTodayTest,
 } from '../../lib/dailyTest';
 
 const MOOD_LABELS: Record<number, string> = {
@@ -387,6 +388,21 @@ const DailyTestPage: React.FC = () => {
                         Practicar con Mentor →
                     </button>
                 </div>
+
+                <button
+                    onClick={() => {
+                        clearTodayTest();
+                        setStep('checkin');
+                        setQuestions([]);
+                        setAnswers({});
+                        setSubmitted(false);
+                        setMatrix(null);
+                        setTodaySession(null);
+                    }}
+                    className="w-full text-xs text-light/25 hover:text-light/50 py-2 transition-colors"
+                >
+                    ↺ Regenerar test (descarta el actual y genera uno nuevo)
+                </button>
             </div>
         );
     }
