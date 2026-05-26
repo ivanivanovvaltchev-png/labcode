@@ -1,45 +1,66 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getPathById, getAvailableSkills } from '../../data/careerPaths';
 import { getHabilidadesValidadas } from '../../lib/learningMetrics';
 import { loadKnowledgeProfile, saveKnowledgeProfile } from '../../lib/knowledgeProfile';
-import { analyzeKnowledgeFromCode } from '../../ai/knowledgeAnalyzer';
+import { analyzeKnowledgeFromCode, extractCodeFromFile } from '../../ai/knowledgeAnalyzer';
 import { generateDiagnosticExam, evaluateDiagnosticExam, generateDailyPlan, DiagnosticQuestion } from '../../ai/diagnosticAgent';
 import { markOnboardingComplete, saveDiagnosticResult, saveDailyPlan, todayString } from '../../lib/userProgress';
+import { extractTextFromPDF } from '../../lib/pdfExtractor';
+import { addTheoryContext, loadTheoryContexts, removeTheoryContext, TheoryContext } from '../../lib/theoryContext';
 
 interface Props { pathId: string; }
 
 type Step = 'welcome' | 'upload' | 'exam_intro' | 'exam' | 'evaluating' | 'results' | 'plan';
 
-const STEP_LABELS = ['Bienvenida', 'Tus ejercicios', 'Diagnóstico', 'Resultados', 'Plan de hoy'];
+const STEP_LABELS = ['Bienvenida', 'Tu material', 'Diagnóstico', 'Resultados', 'Plan de hoy'];
 const STEP_INDEX: Record<Step, number> = { welcome: 0, upload: 1, exam_intro: 2, exam: 2, evaluating: 2, results: 3, plan: 4 };
+
+const CODE_EXTS = ['.py', '.ipynb', '.txt'];
+
+function fileExt(name: string): string {
+    const m = name.match(/\.[^.]+$/);
+    return m ? m[0].toLowerCase() : '';
+}
 
 const OnboardingFlow: React.FC<Props> = ({ pathId }) => {
     const navigate = useNavigate();
     const path = getPathById(pathId);
-    const fileInputRef = useRef<HTMLInputElement>(null);
+    const codeInputRef = useRef<HTMLInputElement>(null);
+    const pdfInputRef = useRef<HTMLInputElement>(null);
 
     const [step, setStep] = useState<Step>('welcome');
+
+    // ── Code files ────────────────────────────────────────────────────────────
     const [pendingFiles, setPendingFiles] = useState<{ name: string; content: string }[]>([]);
     const [isAnalyzingFiles, setIsAnalyzingFiles] = useState(false);
     const [profileReady, setProfileReady] = useState(!!loadKnowledgeProfile());
     const [dragOver, setDragOver] = useState(false);
+    const [fileError, setFileError] = useState('');
 
+    // ── PDF files ─────────────────────────────────────────────────────────────
+    const [theoryCtxs, setTheoryCtxs] = useState<TheoryContext[]>([]);
+    const [pdfLoading, setPdfLoading] = useState(false);
+    const [pdfError, setPdfError] = useState('');
+
+    useEffect(() => { setTheoryCtxs(loadTheoryContexts()); }, []);
+
+    // ── Exam ──────────────────────────────────────────────────────────────────
     const [questions, setQuestions] = useState<DiagnosticQuestion[]>([]);
     const [answers, setAnswers] = useState<Record<string, string>>({});
     const [currentQ, setCurrentQ] = useState(0);
-
     const [evalResult, setEvalResult] = useState<Awaited<ReturnType<typeof evaluateDiagnosticExam>> | null>(null);
     const [dailyTasks, setDailyTasks] = useState<Awaited<ReturnType<typeof generateDailyPlan>>>([]);
     const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
 
     if (!path) { navigate('/elegir-camino'); return null; }
 
-    // ── File handling ──────────────────────────────────────────────────────────
-    const readFiles = (files: FileList) => {
-        const pyFiles = Array.from(files).filter(f => f.name.endsWith('.py'));
-        if (!pyFiles.length) return;
-        Promise.all(pyFiles.map(f => new Promise<{ name: string; content: string }>(res => {
+    // ── Code file handling ────────────────────────────────────────────────────
+    const readCodeFiles = (files: FileList) => {
+        const valid = Array.from(files).filter(f => CODE_EXTS.includes(fileExt(f.name)));
+        if (!valid.length) { setFileError(`Solo se aceptan ${CODE_EXTS.join(', ')}`); return; }
+        setFileError('');
+        Promise.all(valid.map(f => new Promise<{ name: string; content: string }>(res => {
             const r = new FileReader();
             r.onload = e => res({ name: f.name, content: e.target?.result as string });
             r.readAsText(f);
@@ -52,7 +73,9 @@ const OnboardingFlow: React.FC<Props> = ({ pathId }) => {
     const handleAnalyzeFiles = async () => {
         if (!pendingFiles.length) return;
         setIsAnalyzingFiles(true);
-        const allCode = pendingFiles.map(f => `# --- ${f.name} ---\n${f.content}`).join('\n\n');
+        const allCode = pendingFiles
+            .map(f => `# --- ${f.name} ---\n${extractCodeFromFile(f.name, f.content)}`)
+            .join('\n\n');
         const result = await analyzeKnowledgeFromCode(allCode);
         const existing = loadKnowledgeProfile();
         saveKnowledgeProfile({
@@ -66,7 +89,33 @@ const OnboardingFlow: React.FC<Props> = ({ pathId }) => {
         setIsAnalyzingFiles(false);
     };
 
-    // ── Exam ────────────────────────────────────────────────────────────────────
+    // ── PDF handling ──────────────────────────────────────────────────────────
+    const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
+        const pdfs = Array.from(files).filter(f => f.name.endsWith('.pdf'));
+        if (!pdfs.length) { setPdfError('Solo se aceptan archivos .pdf'); return; }
+        setPdfLoading(true);
+        setPdfError('');
+        try {
+            for (const file of pdfs) {
+                const rawText = await extractTextFromPDF(file);
+                addTheoryContext({ fileName: file.name, rawText, charCount: rawText.length, extractedAt: Date.now() });
+            }
+            setTheoryCtxs(loadTheoryContexts());
+        } catch {
+            setPdfError('Error al leer el PDF. Asegúrate de que no esté protegido con contraseña.');
+        }
+        setPdfLoading(false);
+        if (e.target) e.target.value = '';
+    };
+
+    const handleRemovePdf = (fileName: string) => {
+        removeTheoryContext(fileName);
+        setTheoryCtxs(loadTheoryContexts());
+    };
+
+    // ── Exam ──────────────────────────────────────────────────────────────────
     const handleStartExam = async () => {
         setStep('exam_intro');
         const profile = loadKnowledgeProfile();
@@ -112,6 +161,9 @@ const OnboardingFlow: React.FC<Props> = ({ pathId }) => {
     const typeLabel = { learn: 'Aprender', practice: 'Practicar', review: 'Repasar' };
     const typeColor = { learn: 'border-blue-500/30 bg-blue-900/10', practice: 'border-violet-500/30 bg-violet-900/10', review: 'border-amber-500/30 bg-amber-900/10' };
 
+    const totalPdfChars = theoryCtxs.reduce((s, c) => s + c.charCount, 0);
+    const hasMaterial = profileReady || theoryCtxs.length > 0;
+
     return (
         <div className="max-w-2xl mx-auto px-4 py-10">
             {/* Progress steps */}
@@ -136,12 +188,13 @@ const OnboardingFlow: React.FC<Props> = ({ pathId }) => {
                     <h1 className="text-3xl font-bold text-light mb-2">¡Camino elegido!</h1>
                     <h2 className="text-xl text-violet-400 font-semibold mb-4">{path.title}</h2>
                     <p className="text-light/50 text-sm mb-8 leading-relaxed">
-                        Antes de empezar a entrenar, necesitamos evaluar tu nivel real para crear un plan de aprendizaje personalizado. Serán dos pasos rápidos.
+                        Antes de empezar a entrenar, la IA necesita conocerte. Sube tu material y realizarás un diagnóstico rápido para que el sistema sepa exactamente qué generarte cada día.
                     </p>
-                    <div className="grid grid-cols-2 gap-4 mb-8">
+                    <div className="grid grid-cols-3 gap-3 mb-8">
                         {[
-                            { icon: '📂', title: 'Sube tus ejercicios', desc: 'Analizamos lo que ya sabes' },
-                            { icon: '🎯', title: 'Diagnóstico inicial', desc: 'Determinamos tu nivel real' },
+                            { icon: '📘', title: 'Sube tus PDFs', desc: 'El material que has visto en clase' },
+                            { icon: '🐍', title: 'Sube tus ejercicios', desc: 'Los .py que hayas resuelto' },
+                            { icon: '🎯', title: 'Diagnóstico inicial', desc: '5 ejercicios para medir tu nivel real' },
                         ].map(c => (
                             <div key={c.title} className="bg-[#1a1a1a] border border-light/10 rounded-xl p-4 text-left">
                                 <div className="text-2xl mb-2">{c.icon}</div>
@@ -158,59 +211,124 @@ const OnboardingFlow: React.FC<Props> = ({ pathId }) => {
 
             {/* ── UPLOAD ── */}
             {step === 'upload' && (
-                <div>
-                    <h2 className="text-2xl font-bold text-light mb-2 text-center">📂 Sube tus ejercicios</h2>
-                    <p className="text-light/50 text-sm mb-6 text-center">
-                        Sube los archivos <code className="bg-light/10 px-1 rounded">.py</code> que hayas hecho hasta ahora. La IA detectará qué conceptos ya conoces.
-                    </p>
-
-                    {profileReady && loadKnowledgeProfile() && (
-                        <div className="bg-emerald-900/20 border border-emerald-500/30 rounded-2xl p-4 mb-4">
-                            <div className="text-sm font-semibold text-emerald-400 mb-1">✅ Perfil existente detectado</div>
-                            <div className="text-xs text-light/50">{loadKnowledgeProfile()!.concepts.length} conceptos detectados anteriormente. Puedes añadir más o continuar.</div>
-                        </div>
-                    )}
-
-                    <div
-                        onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-                        onDragLeave={() => setDragOver(false)}
-                        onDrop={e => { e.preventDefault(); setDragOver(false); readFiles(e.dataTransfer.files); }}
-                        onClick={() => fileInputRef.current?.click()}
-                        className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all mb-4 ${dragOver ? 'border-violet-500 bg-violet-500/10' : 'border-light/20 hover:border-violet-500/50'}`}
-                    >
-                        <div className="text-3xl mb-2">📁</div>
-                        <div className="text-sm font-semibold text-light/60">Arrastra archivos .py o haz clic</div>
-                        <input ref={fileInputRef} type="file" accept=".py" multiple onChange={e => e.target.files && readFiles(e.target.files)} className="hidden" />
+                <div className="space-y-5">
+                    <div className="text-center">
+                        <h2 className="text-2xl font-bold text-light mb-1">Sube tu material</h2>
+                        <p className="text-light/40 text-sm">Cuanto más subas, más preciso será el diagnóstico y el entrenamiento diario.</p>
                     </div>
 
-                    {pendingFiles.length > 0 && (
-                        <div className="bg-[#1a1a1a] border border-light/10 rounded-xl p-4 mb-4">
-                            {pendingFiles.map(f => (
-                                <div key={f.name} className="flex items-center justify-between py-1">
-                                    <span className="text-sm text-light/60 font-mono">🐍 {f.name}</span>
-                                    <button onClick={() => setPendingFiles(p => p.filter(x => x.name !== f.name))} className="text-xs text-light/30 hover:text-red-400">✕</button>
+                    {/* ── PDFs de teoría ── */}
+                    <div className={`border rounded-2xl p-5 flex flex-col gap-4 transition-all ${theoryCtxs.length > 0 ? 'border-blue-500/30 bg-blue-900/10' : 'border-light/10 bg-[#1a1a1a]'}`}>
+                        <div className="flex items-start justify-between gap-3">
+                            <div>
+                                <div className="flex items-center gap-2 mb-0.5">
+                                    <span className="text-lg">📘</span>
+                                    <span className="text-sm font-bold text-light">Material teórico (PDFs)</span>
+                                    {theoryCtxs.length > 0 && (
+                                        <span className="text-xs bg-blue-900/40 border border-blue-500/30 text-blue-300 px-2 py-0.5 rounded-full">
+                                            {theoryCtxs.length} PDF{theoryCtxs.length > 1 ? 's' : ''} · {totalPdfChars.toLocaleString()} chars
+                                        </span>
+                                    )}
                                 </div>
-                            ))}
-                            <button onClick={handleAnalyzeFiles} disabled={isAnalyzingFiles} className="w-full mt-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold py-2 rounded-xl text-sm transition-all">
-                                {isAnalyzingFiles ? 'Analizando…' : `Analizar ${pendingFiles.length} archivo${pendingFiles.length > 1 ? 's' : ''}`}
+                                <p className="text-xs text-light/40">Los apuntes, PDFs de clase o material oficial del curso. La IA solo generará contenido que aparezca en estos documentos.</p>
+                            </div>
+                            <button
+                                onClick={() => pdfInputRef.current?.click()}
+                                disabled={pdfLoading}
+                                className="flex-shrink-0 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold px-3 py-2 rounded-xl transition-all"
+                            >
+                                {pdfLoading ? 'Extrayendo…' : '+ Añadir PDF'}
                             </button>
+                            <input ref={pdfInputRef} type="file" accept=".pdf" multiple onChange={handlePdfUpload} className="hidden" />
                         </div>
-                    )}
 
-                    <div className="flex gap-3 mt-2">
-                        <button
-                            onClick={() => { setStep('exam_intro'); handleStartExam(); }}
-                            className="flex-1 bg-[#1a1a1a] hover:bg-light/5 border border-light/10 text-light/50 font-bold py-3 rounded-xl text-sm transition-all"
+                        {pdfError && <p className="text-xs text-red-400">{pdfError}</p>}
+
+                        {theoryCtxs.length > 0 && (
+                            <div className="space-y-2">
+                                {theoryCtxs.map(ctx => (
+                                    <div key={ctx.fileName} className="bg-[#0f0f0f] rounded-xl px-3 py-2.5 flex items-center justify-between gap-3">
+                                        <div className="min-w-0">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs font-semibold text-blue-300 truncate">📄 {ctx.fileName}</span>
+                                                <span className="text-xs text-light/30 flex-shrink-0">{ctx.charCount.toLocaleString()} chars</span>
+                                            </div>
+                                            <p className="text-xs text-light/30 italic truncate mt-0.5">{ctx.rawText.slice(0, 80)}…</p>
+                                        </div>
+                                        <button onClick={() => handleRemovePdf(ctx.fileName)} className="text-light/25 hover:text-red-400 transition-colors text-xs flex-shrink-0">✕</button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* ── Ejercicios de código ── */}
+                    <div className="border border-light/10 bg-[#1a1a1a] rounded-2xl p-5 flex flex-col gap-4">
+                        <div>
+                            <div className="flex items-center gap-2 mb-0.5">
+                                <span className="text-lg">🐍</span>
+                                <span className="text-sm font-bold text-light">Ejercicios realizados</span>
+                                {profileReady && (
+                                    <span className="text-xs bg-emerald-900/40 border border-emerald-500/30 text-emerald-300 px-2 py-0.5 rounded-full">
+                                        {loadKnowledgeProfile()?.concepts.length ?? 0} conceptos detectados
+                                    </span>
+                                )}
+                            </div>
+                            <p className="text-xs text-light/40">Archivos .py, .ipynb o .txt con los ejercicios que hayas resuelto. La IA detectará qué conceptos ya dominas.</p>
+                        </div>
+
+                        <div
+                            onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                            onDragLeave={() => setDragOver(false)}
+                            onDrop={e => { e.preventDefault(); setDragOver(false); readCodeFiles(e.dataTransfer.files); }}
+                            onClick={() => codeInputRef.current?.click()}
+                            className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${dragOver ? 'border-emerald-500 bg-emerald-500/10' : 'border-light/15 hover:border-emerald-500/40'}`}
                         >
-                            Continuar sin subir ejercicios
+                            <div className="text-2xl mb-1">📁</div>
+                            <div className="text-xs font-semibold text-light/50">Arrastra .py / .ipynb / .txt o haz clic</div>
+                            <input ref={codeInputRef} type="file" accept={CODE_EXTS.join(',')} multiple onChange={e => e.target.files && readCodeFiles(e.target.files)} className="hidden" />
+                        </div>
+
+                        {fileError && <p className="text-xs text-red-400">{fileError}</p>}
+
+                        {pendingFiles.length > 0 && (
+                            <div className="space-y-1.5">
+                                {pendingFiles.map(f => (
+                                    <div key={f.name} className="flex items-center justify-between bg-[#0f0f0f] rounded-lg px-3 py-2">
+                                        <span className="text-xs text-light/60 font-mono truncate">🐍 {f.name}</span>
+                                        <button onClick={() => setPendingFiles(p => p.filter(x => x.name !== f.name))} className="text-xs text-light/30 hover:text-red-400 ml-2 flex-shrink-0">✕</button>
+                                    </div>
+                                ))}
+                                <button
+                                    onClick={handleAnalyzeFiles}
+                                    disabled={isAnalyzingFiles}
+                                    className="w-full mt-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold py-2 rounded-xl text-xs transition-all"
+                                >
+                                    {isAnalyzingFiles ? 'Analizando con IA…' : `Analizar ${pendingFiles.length} archivo${pendingFiles.length > 1 ? 's' : ''} →`}
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* ── Continuar ── */}
+                    <div className="flex gap-3 pt-1">
+                        <button
+                            onClick={handleStartExam}
+                            className="flex-1 bg-light/5 hover:bg-light/10 border border-light/10 text-light/40 font-bold py-3 rounded-xl text-sm transition-all"
+                        >
+                            Continuar sin material
                         </button>
                         <button
                             onClick={handleStartExam}
-                            className="flex-1 bg-violet-600 hover:bg-violet-500 text-white font-bold py-3 rounded-xl text-sm transition-all"
+                            disabled={!hasMaterial}
+                            className="flex-1 bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl text-sm transition-all"
                         >
-                            Continuar al diagnóstico →
+                            {hasMaterial ? 'Ir al diagnóstico →' : 'Sube material primero'}
                         </button>
                     </div>
+                    <p className="text-xs text-light/25 text-center -mt-1">
+                        La IA usará todo lo que subas para personalizar el diagnóstico y el entrenamiento diario.
+                    </p>
                 </div>
             )}
 
@@ -219,7 +337,7 @@ const OnboardingFlow: React.FC<Props> = ({ pathId }) => {
                 <div className="text-center py-16">
                     <div className="text-4xl mb-4">🎯</div>
                     <h2 className="text-xl font-bold text-light mb-2">Generando tu diagnóstico…</h2>
-                    <p className="text-sm text-light/50 mb-6">La IA está creando preguntas personalizadas para tu nivel</p>
+                    <p className="text-sm text-light/50 mb-6">La IA está creando 5 ejercicios personalizados para evaluar tu nivel real</p>
                     <div className="flex justify-center gap-2">
                         {[0, 1, 2].map(i => <span key={i} className="w-2 h-2 bg-violet-400 rounded-full animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />)}
                     </div>
@@ -229,13 +347,14 @@ const OnboardingFlow: React.FC<Props> = ({ pathId }) => {
             {/* ── EXAM ── */}
             {step === 'exam' && questions.length > 0 && (
                 <div>
-                    <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center justify-between mb-2">
                         <h2 className="text-xl font-bold text-light">🎯 Diagnóstico inicial</h2>
                         <span className="text-sm text-light/40">{currentQ + 1} / {questions.length}</span>
                     </div>
+                    <p className="text-xs text-light/30 mb-5">Responde como puedas. No es un examen — es para conocer tu punto de partida real.</p>
 
                     {/* Progress dots */}
-                    <div className="flex gap-1.5 mb-6">
+                    <div className="flex gap-1.5 mb-5">
                         {questions.map((_, i) => (
                             <div key={i} onClick={() => setCurrentQ(i)} className={`flex-1 h-1.5 rounded-full cursor-pointer transition-all ${i < currentQ ? 'bg-emerald-500' : i === currentQ ? 'bg-violet-500' : 'bg-light/10'}`} />
                         ))}
@@ -253,8 +372,8 @@ const OnboardingFlow: React.FC<Props> = ({ pathId }) => {
                         <textarea
                             value={answers[questions[currentQ].id] ?? ''}
                             onChange={e => setAnswers(prev => ({ ...prev, [questions[currentQ].id]: e.target.value }))}
-                            placeholder="Escribe tu respuesta aquí. No te preocupes si no sabes todo — el objetivo es conocer tu nivel real."
-                            rows={5}
+                            placeholder="Escribe tu respuesta aquí. Código, explicación, lo que sepas — no importa si no está perfecto."
+                            rows={6}
                             className="w-full bg-[#0f0f0f] border border-light/10 rounded-xl p-4 text-sm text-light placeholder-light/25 resize-none focus:outline-none focus:border-violet-500/50 transition-colors font-mono"
                         />
                     </div>
@@ -272,15 +391,15 @@ const OnboardingFlow: React.FC<Props> = ({ pathId }) => {
                         ) : (
                             <button
                                 onClick={handleSubmitExam}
-                                disabled={Object.keys(answers).length < questions.length * 0.6}
+                                disabled={Object.keys(answers).length < Math.ceil(questions.length * 0.6)}
                                 className="flex-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl text-sm transition-all"
                             >
-                                Enviar respuestas y ver resultados →
+                                Enviar y ver resultados →
                             </button>
                         )}
                     </div>
 
-                    {currentQ === questions.length - 1 && Object.keys(answers).length < questions.length * 0.6 && (
+                    {currentQ === questions.length - 1 && Object.keys(answers).length < Math.ceil(questions.length * 0.6) && (
                         <p className="text-xs text-light/30 text-center mt-2">Responde al menos {Math.ceil(questions.length * 0.6)} preguntas para continuar</p>
                     )}
                 </div>
@@ -329,7 +448,7 @@ const OnboardingFlow: React.FC<Props> = ({ pathId }) => {
 
                     {/* Per-question breakdown */}
                     <div className="bg-[#1a1a1a] border border-light/10 rounded-2xl p-4 mb-5">
-                        <div className="text-xs font-semibold text-light/40 uppercase tracking-wider mb-3">Desglose por pregunta</div>
+                        <div className="text-xs font-semibold text-light/40 uppercase tracking-wider mb-3">Desglose por ejercicio</div>
                         <div className="space-y-2">
                             {evalResult.evaluations.map((ev, i) => (
                                 <div key={ev.questionId} className="flex items-start gap-3">
