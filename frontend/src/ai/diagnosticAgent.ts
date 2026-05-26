@@ -1,5 +1,10 @@
 import { CareerPath, PathSkill } from '../data/careerPaths';
 import { TestQuestion } from '../lib/dailyTest';
+import {
+    HABILIDADES_PERMITIDAS,
+    CONCEPTOS_PROHIBIDOS,
+    TEST_SLOTS,
+} from './studentProfile';
 
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions';
 
@@ -205,64 +210,57 @@ Una vez dominado el bloque Python, el alumno puede avanzar hacia frontend (HTML,
 export async function generateDailyPlan(
     path: CareerPath,
     _weakAreas: string[],
-    profileConcepts: string[],
-    availableSkills: { name: string; importance: string; order: number }[],
-    habilidadesValidadas: string[]
+    _profileConcepts: string[],
+    _availableSkills: { name: string; importance: string; order: number }[],
+    _habilidadesValidadas: string[]
 ): Promise<DailyTaskRaw[]> {
-    const skills = availableSkills.length > 0 ? availableSkills : path.skills;
-
-    // Build the live allowlist for the AI — only concepts the student has unlocked
-    const allowList = habilidadesValidadas.length > 0
-        ? habilidadesValidadas.join(', ')
-        : skills.slice(0, 5).map(s => s.name).join(', ');
-
+    const skills = path.skills; // kept for post-generation validation fallback
     const pathContext = buildPathContext(path);
 
-    const systemPrompt = `Tu único objetivo es generar un JSON con exactamente 3 tarjetas.
+    // Use the hardcoded student profile as the authoritative allowlist.
+    // This overrides any dynamic computation based on the full curriculum.
+    const allowList = HABILIDADES_PERMITIDAS.join('\n- ');
+
+    const systemPrompt = `Eres un generador de ejercicios prácticos de Python. Devuelve ÚNICAMENTE el JSON indicado, sin texto extra ni markdown.
 
 ${pathContext}
 
-REGLA ABSOLUTA DE CONTENIDO: Los conceptos, ejemplos de código y sintaxis que uses en las descriptions deben pertenecer ÚNICAMENTE a esta lista de habilidades validadas del estudiante:
-${allowList}
+CONOCIMIENTO REAL Y VALIDADO DEL ESTUDIANTE — solo puedes usar estos conceptos:
+- ${allowList}
 
-Todo lo demás (funciones def/return, diccionarios, clases, SQL, tuplas, excepciones, POO, o cualquier concepto no listado arriba) está ESTRICTAMENTE PROHIBIDO. Romperá la aplicación y anulará el ejercicio.
+CUALQUIER otro concepto (funciones def/return, diccionarios, tuplas, clases, SQL, Git, pseudocódigo, .split(), excepciones, ORM, librerías distintas a numpy) está TERMINANTEMENTE PROHIBIDO.
 
-FORMATO DE RESPUESTA — devuelve ÚNICAMENTE este JSON, sin texto extra, sin markdown, sin explicaciones:
+FORMATO DE RESPUESTA:
 [
   {"type": "review",   "title": "Repaso de Bucles y Condicionales", "description": "...", "skillRef": "Bucle for e iteración"},
   {"type": "practice", "title": "Proyecto Práctico de Consola",     "description": "...", "skillRef": "Listas"},
-  {"type": "learn",    "title": "Introducción a Módulos Básicos",   "description": "...", "skillRef": "Arrays y módulos"}
+  {"type": "learn",    "title": "Introducción a NumPy Arrays",      "description": "...", "skillRef": "Arrays y módulos"}
 ]
 
-Los campos "type", "title" y "skillRef" son FIJOS. Solo debes rellenar "description" con el enunciado concreto de cada tarjeta:
+Los campos type, title y skillRef son FIJOS. Solo rellena description:
 
-TARJETA 1 — type:"review", title:"Repaso de Bucles y Condicionales"
-description: Escribe un enunciado donde el usuario recorra una lista de datos (strings o números definidos en el código) con un bucle for o while, y use if/elif/else para filtrar o clasificar cada elemento. Varía el escenario (precios, temperaturas, notas, edades, stocks).
+TARJETA 1 — Repaso de Bucles y Condicionales
+Enunciado donde el usuario recorra una lista ya definida en el código con for o while y use if/elif/else para filtrar o clasificar. Varía el escenario (precios, temperaturas, notas, edades). Sin funciones.
 
-TARJETA 2 — type:"practice", title:"Proyecto Práctico de Consola"
-description: Escribe un enunciado de mini-programa interactivo con bucle while, menú numérico (opciones 1, 2, 3 y salir), y una lista que el usuario construye con input(). Escenarios: lista de la compra, control de temperaturas, registro de notas, inventario.
+TARJETA 2 — Proyecto Práctico de Consola
+Mini-programa con while, menú numérico (opciones 1, 2, 3 y salir), y una lista que el usuario construye con input(). Escenarios: lista de la compra, registro de notas, inventario simple. Sin funciones.
 
-TARJETA 3 — type:"learn", title:"Introducción a Módulos Básicos"
-description: Escribe un enunciado guiado paso a paso para usar "import random" o "import math" con una lista y un bucle for. Varía el ejercicio: generar números aleatorios, calcular raíces cuadradas, encontrar máximos, filtrar valores.`;
+TARJETA 3 — Introducción a NumPy Arrays
+Ejercicio guiado paso a paso con numpy: np.zeros(), np.ones(), np.arange(), array.copy(), np.sum(), array[::-1] o np.intersect1d(). Varía el escenario. Solo numpy básico, sin funciones.`;
 
     const userPrompt = `Genera las 3 tarjetas. Varía el escenario de la description para que no se repita siempre el mismo ejemplo. Devuelve solo el JSON.`;
 
     const result = await deepSeekJSON<DailyTaskRaw[]>(systemPrompt, userPrompt);
 
-    // Hard validation: if any task references a skill outside the available list, fix it
+    // The skillRefs are hardcoded in the prompt, so fallback to path skills only
+    // if the AI ignores the template entirely.
     const validNames = new Set(skills.map(s => s.name.toLowerCase()));
-    const masteredSkills = skills.filter(s =>
-        profileConcepts.some(c =>
-            s.name.toLowerCase().split(' ').some(word => word.length > 3 && c.toLowerCase().includes(word))
-        )
-    );
-    const nextSkills = skills.filter(s => !masteredSkills.find(m => m.name === s.name));
-    return result.map((task, i) => {
+    return result.map((task) => {
         const isValid = validNames.has(task.skillRef.toLowerCase()) ||
             skills.some(s => s.name.toLowerCase().includes(task.skillRef.toLowerCase().split(' ')[0]));
         if (!isValid) {
-            const fallback = (i === 0 ? masteredSkills[0] : nextSkills[0] ?? skills[0]);
-            return { ...task, skillRef: fallback?.name ?? skills[0]?.name ?? task.skillRef };
+            const fallback = skills.find(s => !s.selfAssess) ?? skills[0];
+            return { ...task, skillRef: fallback?.name ?? task.skillRef };
         }
         return task;
     });
@@ -270,18 +268,9 @@ description: Escribe un enunciado guiado paso a paso para usar "import random" o
 
 // ─── Daily Mini-Test Generator ────────────────────────────────────────────────
 
-// Hard blacklist — any question whose text, options or explanation contains one
-// of these words is silently discarded and the test is retried. This is a code-
-// level shield that works regardless of what the LLM decides to generate.
-const QUESTION_BLACKLIST = [
-    'def ', ' def', 'return ', ' return', 'function', 'funciones',
-    'sql', 'select ', 'where ', 'join ', 'clase ', 'class ',
-    'lambda', 'diccionario', 'dict(', '.keys()', '.values()', '.items()',
-    'tupla', 'tuple(', 'set(', 'try:', 'except', 'raise ',
-    'open(', 'with open', '__init__', 'self.',
-];
-
-function questionPassesBlacklist(q: TestQuestion): boolean {
+// Hard shield — any question containing a forbidden concept is silently
+// discarded and the API is retried. Source of truth: studentProfile.ts.
+function questionPassesGuard(q: TestQuestion): boolean {
     const text = [
         q.question,
         q.options.A,
@@ -290,7 +279,7 @@ function questionPassesBlacklist(q: TestQuestion): boolean {
         q.explanation ?? '',
         q.skillRef ?? '',
     ].join(' ').toLowerCase();
-    return !QUESTION_BLACKLIST.some(word => text.includes(word.toLowerCase()));
+    return !CONCEPTOS_PROHIBIDOS.some(term => text.includes(term.toLowerCase()));
 }
 
 /**
@@ -302,69 +291,56 @@ function questionPassesBlacklist(q: TestQuestion): boolean {
  */
 export async function generateDailyTest(
     path: CareerPath,
-    availableSkills: PathSkill[],
-    recentFailedSkills: string[],
-    habilidadesValidadas: string[]
+    _availableSkills: PathSkill[],
+    _recentFailedSkills: string[],
+    _habilidadesValidadas: string[]
 ): Promise<TestQuestion[]> {
-    // Only test skills the AI can generate content for — exclude selfAssess skills
-    // (Git, SQL, Pseudocódigo) which require human confirmation, not AI testing.
-    const testablePool = availableSkills.filter(s => !s.selfAssess);
-
-    // Pick up to 3 skills to test: failed ones first, then random from available
-    const failed = testablePool.filter(s => recentFailedSkills.includes(s.name) || recentFailedSkills.includes(s.id));
-    const others = testablePool.filter(s => !failed.find(f => f.id === s.id));
-    const shuffled = [...failed, ...others.sort(() => Math.random() - 0.5)];
-    const testSkills = shuffled.slice(0, 3);
-
-    const skillList = testSkills.map(s => `"${s.name}"`).join(', ');
-
-    // Build live allowlist — AI may only touch validated concepts
-    const allowList = habilidadesValidadas.length > 0
-        ? habilidadesValidadas.join(', ')
-        : availableSkills.slice(0, 5).map(s => s.name).join(', ');
-
+    // Ignore the dynamic availableSkills/habilidadesValidadas — the test structure
+    // is fixed by the student profile. 3 questions, 3 mandatory topic slots.
     const pathContext = buildPathContext(path);
 
-    const systemPrompt = `Eres un evaluador de teoría de programación Python. Generas preguntas de opción múltiple (A, B, C) sobre conceptos teóricos.
+    const slotsBlock = TEST_SLOTS.map(s =>
+        `PREGUNTA ${s.slot} — Tema: ${s.tema}\nInstrucción: ${s.instruccion}`
+    ).join('\n\n');
+
+    const systemPrompt = `Eres un evaluador de teoría de Python. Generas exactamente 3 preguntas de opción múltiple (A, B, C).
 
 ${pathContext}
 
-REGLA ABSOLUTA: Solo puedes generar preguntas sobre conceptos de esta lista de habilidades validadas del estudiante:
-${allowList}
+CONOCIMIENTO REAL DEL ESTUDIANTE (lo único que puedes tocar):
+${HABILIDADES_PERMITIDAS.map(h => `- ${h}`).join('\n')}
 
-Todo lo demás (funciones def/return, diccionarios, tuplas, sets, clases, excepciones, archivos, SQL, POO, o cualquier concepto no listado arriba) está ESTRICTAMENTE PROHIBIDO — aunque parezca relevante o útil.
+ESTRUCTURA OBLIGATORIA — genera EXACTAMENTE estas 3 preguntas en este orden:
 
-FORMATO — devuelve ÚNICAMENTE un JSON array sin texto extra ni markdown:
+${slotsBlock}
+
+FORMATO — devuelve ÚNICAMENTE este JSON array, sin texto extra ni markdown:
 [
   {
     "id": "q1",
-    "question": "Pregunta teórica clara y concisa",
+    "question": "Pregunta teórica clara",
     "options": { "A": "opción A", "B": "opción B", "C": "opción C" },
     "correctAnswer": "A",
-    "explanation": "Explicación breve de por qué esa es la respuesta correcta",
-    "skillRef": "nombre exacto del skill evaluado"
+    "explanation": "Por qué esa es la correcta",
+    "skillRef": "tema evaluado"
   }
 ]
 
-REGLAS DE CALIDAD:
-- Las preguntas deben evaluar la TEORÍA (qué hace, por qué, cuándo usar), no pedir escribir código.
-- Ejemplo válido: "¿Qué devuelve list.append() en Python?" → A: None B: la lista C: el elemento añadido
-- Las opciones incorrectas deben ser plausibles (errores comunes reales, no tonterías).
-- Una pregunta por skill de la lista recibida.`;
+REGLAS:
+- Las preguntas evalúan TEORÍA pura (¿qué hace?, ¿cuál es el resultado?, ¿qué error da?).
+- Las opciones incorrectas deben ser errores comunes plausibles, no tonterías obvias.
+- PROHIBIDO ABSOLUTO: def, return, funciones, SQL, diccionarios, tuplas, clases, Git, pseudocódigo, .split(), excepciones, ORM.`;
 
-    const userPrompt = `Genera exactamente ${testSkills.length} preguntas de teoría sobre estos skills: ${skillList}.
-${recentFailedSkills.length > 0 ? `El estudiante ha fallado recientemente en: ${recentFailedSkills.join(', ')}. Prioriza esos conceptos.` : ''}
-Varía el tipo de pregunta (¿qué hace?, ¿cuándo usar?, ¿cuál es el resultado?, ¿qué error da?).`;
+    const userPrompt = `Genera las 3 preguntas siguiendo exactamente la estructura del system prompt. Una por slot. Devuelve solo el JSON.`;
 
-    // Filter + retry loop — up to 3 attempts to get a clean set of questions
+    // Filter + retry — up to 3 attempts. Source of truth for forbidden terms: studentProfile.ts
     const MAX_ATTEMPTS = 3;
     let clean: TestQuestion[] = [];
 
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
         const raw = await deepSeekJSON<TestQuestion[]>(systemPrompt, userPrompt);
-        clean = raw.filter(questionPassesBlacklist).slice(0, 5);
-        if (clean.length >= testSkills.length) break;
-        // Not enough clean questions — loop retries with the same prompt
+        clean = raw.filter(questionPassesGuard).slice(0, 3);
+        if (clean.length >= TEST_SLOTS.length) break;
     }
 
     return clean;
