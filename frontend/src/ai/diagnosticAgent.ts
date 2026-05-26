@@ -252,10 +252,35 @@ description: Escribe un enunciado guiado paso a paso para usar "import random" o
 
 // ─── Daily Mini-Test Generator ────────────────────────────────────────────────
 
+// Hard blacklist — any question whose text, options or explanation contains one
+// of these words is silently discarded and the test is retried. This is a code-
+// level shield that works regardless of what the LLM decides to generate.
+const QUESTION_BLACKLIST = [
+    'def ', ' def', 'return ', ' return', 'function', 'funciones',
+    'sql', 'select ', 'where ', 'join ', 'clase ', 'class ',
+    'lambda', 'diccionario', 'dict(', '.keys()', '.values()', '.items()',
+    'tupla', 'tuple(', 'set(', 'try:', 'except', 'raise ',
+    'open(', 'with open', '__init__', 'self.',
+];
+
+function questionPassesBlacklist(q: TestQuestion): boolean {
+    const text = [
+        q.question,
+        q.options.A,
+        q.options.B,
+        q.options.C,
+        q.explanation ?? '',
+        q.skillRef ?? '',
+    ].join(' ').toLowerCase();
+    return !QUESTION_BLACKLIST.some(word => text.includes(word.toLowerCase()));
+}
+
 /**
  * Generates 3–5 multiple-choice theory questions for the daily Active Recall test.
  * Questions cover only skills within the student's current curriculum window.
  * Prioritises skills that have been failing recently (recentFailedSkills).
+ * After each API call the questions are hard-filtered against QUESTION_BLACKLIST.
+ * If fewer than the target number survive, the call is retried (max 3 attempts).
  */
 export async function generateDailyTest(
     _path: CareerPath,
@@ -305,6 +330,16 @@ REGLAS DE CALIDAD:
 ${recentFailedSkills.length > 0 ? `El estudiante ha fallado recientemente en: ${recentFailedSkills.join(', ')}. Prioriza esos conceptos.` : ''}
 Varía el tipo de pregunta (¿qué hace?, ¿cuándo usar?, ¿cuál es el resultado?, ¿qué error da?).`;
 
-    const result = await deepSeekJSON<TestQuestion[]>(systemPrompt, userPrompt);
-    return result.slice(0, 5); // safety cap
+    // Filter + retry loop — up to 3 attempts to get a clean set of questions
+    const MAX_ATTEMPTS = 3;
+    let clean: TestQuestion[] = [];
+
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        const raw = await deepSeekJSON<TestQuestion[]>(systemPrompt, userPrompt);
+        clean = raw.filter(questionPassesBlacklist).slice(0, 5);
+        if (clean.length >= testSkills.length) break;
+        // Not enough clean questions — loop retries with the same prompt
+    }
+
+    return clean;
 }
