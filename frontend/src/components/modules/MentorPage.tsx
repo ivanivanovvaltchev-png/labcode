@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { callDeepSeekForMentor, callDeepSeekForMentorVariant, ChatMessage } from '../../ai/agents';
 import { loadKnowledgeProfile, buildKnowledgeBlock, buildPathBlock } from '../../lib/knowledgeProfile';
 import { loadCompletedSessions, saveCompletedSession, CompletedSession } from '../../lib/completedSessions';
+import { completeTask } from '../../lib/userProgress';
 import { loadSelectedPath, loadSelfAssessments } from '../../lib/selectedPath';
 import { getPathById, isSkillMastered } from '../../data/careerPaths';
 import { generateSkillExercise } from '../../ai/diagnosticAgent';
@@ -45,9 +46,15 @@ const MentorPage: React.FC = () => {
     const [searchParams, setSearchParams] = useSearchParams();
 
     // URL params from PathDashboard "Empezar ejercicio"
-    const paramTaskTitle = searchParams.get('taskTitle');
-    const paramSkillRef = searchParams.get('skillRef');
+    const paramTaskTitle  = searchParams.get('taskTitle');
+    const paramSkillRef   = searchParams.get('skillRef');
+    const paramTaskId     = searchParams.get('taskId');
+    const paramTaskIndex  = searchParams.get('taskIndex');
+    const paramTotalTasks = searchParams.get('totalTasks');
     const hasSkillContext = !!(paramTaskTitle || paramSkillRef);
+    const taskIndex   = paramTaskIndex  !== null ? parseInt(paramTaskIndex)  : null;
+    const totalTasks  = paramTotalTasks !== null ? parseInt(paramTotalTasks) : null;
+    const isLastTask  = taskIndex !== null && totalTasks !== null && taskIndex + 1 >= totalTasks;
 
     const [exercise, setExercise] = useState('');
     const [exerciseSubmitted, setExerciseSubmitted] = useState(false);
@@ -62,6 +69,7 @@ const MentorPage: React.FC = () => {
     const [variantOrigin, setVariantOrigin] = useState<string | null>(null);
     const [manuallyCompleted, setManuallyCompleted] = useState(false);
     const [currentSkillContext, setCurrentSkillContext] = useState<string | null>(null);
+    const [showCompletionPopup, setShowCompletionPopup] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const getKnowledgeBlock = () => {
@@ -142,6 +150,28 @@ const MentorPage: React.FC = () => {
             }
         }
     }, [isCompleted, currentSkillContext]);
+    // Open popup the first time isCompleted turns true (only when coming from a task card)
+    const popupShownRef = useRef(false);
+    useEffect(() => {
+        if (isCompleted && hasSkillContext && !popupShownRef.current) {
+            popupShownRef.current = true;
+            setShowCompletionPopup(true);
+        }
+    }, [isCompleted, hasSkillContext]);
+
+    const handleNextTask = () => {
+        const pathId = loadSelectedPath();
+        if (pathId && paramTaskId) completeTask(pathId, paramTaskId);
+        saveCompletedSession({ exercise, messages, completedAt: Date.now(), isVariantOf: variantOrigin ?? undefined });
+        clearActiveSession();
+        navigate('/camino');
+    };
+
+    const handleVariantFromPopup = () => {
+        setShowCompletionPopup(false);
+        handleCreateVariant();
+    };
+
     const stripTag = (text: string) => text.replace(TAG, '').trim();
 
     const resumeSession = () => {
@@ -221,6 +251,43 @@ const MentorPage: React.FC = () => {
 
     return (
         <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+
+            {/* ── Completion popup ── */}
+            {showCompletionPopup && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center">
+                    <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={() => setShowCompletionPopup(false)} />
+                    <div className="relative z-10 bg-[#1a1a1a] border border-emerald-500/40 rounded-3xl p-8 max-w-sm w-full mx-4 shadow-2xl shadow-emerald-500/10 text-center">
+                        <div className="text-6xl mb-4">🏆</div>
+                        <h2 className="text-2xl font-bold text-light mb-1">¡Completado!</h2>
+                        <p className="text-sm text-emerald-400 font-semibold mb-1">{currentSkillContext}</p>
+                        {taskIndex !== null && totalTasks !== null && (
+                            <p className="text-xs text-light/30 mb-6">Tarjeta {taskIndex + 1} de {totalTasks}</p>
+                        )}
+
+                        <div className="space-y-3">
+                            <button
+                                onClick={handleNextTask}
+                                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-2xl text-sm transition-all"
+                            >
+                                {isLastTask ? '🎉 Terminar entrenamiento de hoy' : `➡️ Siguiente tarjeta (${taskIndex !== null ? taskIndex + 2 : ''}/${totalTasks})`}
+                            </button>
+                            <button
+                                onClick={handleVariantFromPopup}
+                                className="w-full bg-violet-900/30 hover:bg-violet-900/50 border border-violet-500/30 text-violet-300 font-bold py-4 rounded-2xl text-sm transition-all"
+                            >
+                                🔄 Quiero una variante del ejercicio
+                            </button>
+                            <button
+                                onClick={() => setShowCompletionPopup(false)}
+                                className="text-xs text-light/25 hover:text-light/50 transition-colors pt-1"
+                            >
+                                Seguir en el chat
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="flex items-center gap-4 mb-4">
                 <button onClick={() => navigate('/')} className="text-light/40 hover:text-light transition-colors text-sm">
                     ← Volver

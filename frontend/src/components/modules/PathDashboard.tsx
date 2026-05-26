@@ -97,8 +97,11 @@ const PathDashboard: React.FC = () => {
         setDailyPlan(getDailyPlan(pathId));
     };
 
-    const goToMentor = (taskTitle: string, taskDesc: string, skillRef: string) => {
+    const goToMentor = (taskTitle: string, taskDesc: string, skillRef: string, taskId?: string, taskIndex?: number) => {
         const params = new URLSearchParams({ taskTitle, taskDesc, skillRef });
+        if (taskId) params.set('taskId', taskId);
+        if (taskIndex !== undefined) params.set('taskIndex', String(taskIndex));
+        if (dailyPlan) params.set('totalTasks', String(dailyPlan.tasks.length));
         navigate(`/mentor?${params.toString()}`);
     };
 
@@ -241,7 +244,7 @@ const PathDashboard: React.FC = () => {
                                     ) : (
                                         <>
                                             <button
-                                                onClick={() => goToMentor(task.title, task.description, task.skillRef)}
+                                                onClick={() => goToMentor(task.title, task.description, task.skillRef, task.id, idx)}
                                                 className="w-full bg-violet-600 hover:bg-violet-500 text-white font-bold py-3 rounded-xl text-sm transition-all"
                                             >
                                                 Empezar ejercicio →
