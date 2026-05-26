@@ -5,6 +5,7 @@ import {
     CONCEPTOS_PROHIBIDOS,
     TEST_SLOTS,
 } from './studentProfile';
+import { getContextForPrompt } from '../lib/theoryContext';
 
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions';
 
@@ -193,6 +194,32 @@ ${JSON.stringify(questionsAndAnswers, null, 2)}`;
     return await deepSeekJSON<ExamEvaluation>(systemPrompt, userPrompt);
 }
 
+/**
+ * Builds the closed-context knowledge block for the system prompt.
+ * Priority:
+ *   1. PDF theory text (uploaded by student via KnowledgePage) — the strongest signal.
+ *   2. Hardcoded studentProfile constants — fallback when no PDF is loaded.
+ *
+ * The AI is instructed that its entire knowledge universe is limited to this block.
+ */
+function buildKnowledgeBlock(): string {
+    const pdfText = getContextForPrompt(3000);
+
+    if (pdfText) {
+        return `UNIVERSO CERRADO DE CONOCIMIENTO — MATERIAL TEÓRICO OFICIAL:
+El siguiente texto es el único material que el estudiante ha estudiado. Tu universo de conocimiento se limita ESTRICTAMENTE a este contenido. Tienes PROHIBIDO usar cualquier sintaxis, función o método que no aparezca explícitamente en este texto.
+
+--- INICIO MATERIAL TEÓRICO ---
+${pdfText}
+--- FIN MATERIAL TEÓRICO ---`;
+    }
+
+    // Fallback: hardcoded profile
+    return `CONOCIMIENTO REAL Y VALIDADO DEL ESTUDIANTE — UNIVERSO CERRADO:
+Solo puedes usar los conceptos de esta lista. Todo lo que no está aquí es PROHIBIDO.
+${HABILIDADES_PERMITIDAS.map(h => `- ${h}`).join('\n')}`;
+}
+
 // Builds the path-context block injected into every AI call.
 // This freezes the content scope to the chosen career track.
 function buildPathContext(path: CareerPath): string {
@@ -216,17 +243,13 @@ export async function generateDailyPlan(
 ): Promise<DailyTaskRaw[]> {
     const skills = path.skills; // kept for post-generation validation fallback
     const pathContext = buildPathContext(path);
-
-    // Use the hardcoded student profile as the authoritative allowlist.
-    // This overrides any dynamic computation based on the full curriculum.
-    const allowList = HABILIDADES_PERMITIDAS.join('\n- ');
+    const knowledgeBlock = buildKnowledgeBlock();
 
     const systemPrompt = `Eres un generador de ejercicios prácticos de Python. Devuelve ÚNICAMENTE el JSON indicado, sin texto extra ni markdown.
 
 ${pathContext}
 
-CONOCIMIENTO REAL Y VALIDADO DEL ESTUDIANTE — solo puedes usar estos conceptos:
-- ${allowList}
+${knowledgeBlock}
 
 CUALQUIER otro concepto (funciones def/return, diccionarios, tuplas, clases, SQL, Git, pseudocódigo, .split(), excepciones, ORM, librerías distintas a numpy) está TERMINANTEMENTE PROHIBIDO.
 
@@ -298,6 +321,7 @@ export async function generateDailyTest(
     // Ignore the dynamic availableSkills/habilidadesValidadas — the test structure
     // is fixed by the student profile. 3 questions, 3 mandatory topic slots.
     const pathContext = buildPathContext(path);
+    const knowledgeBlock = buildKnowledgeBlock();
 
     const slotsBlock = TEST_SLOTS.map(s =>
         `PREGUNTA ${s.slot} — Tema: ${s.tema}\nInstrucción: ${s.instruccion}`
@@ -307,8 +331,7 @@ export async function generateDailyTest(
 
 ${pathContext}
 
-CONOCIMIENTO REAL DEL ESTUDIANTE (lo único que puedes tocar):
-${HABILIDADES_PERMITIDAS.map(h => `- ${h}`).join('\n')}
+${knowledgeBlock}
 
 ESTRUCTURA OBLIGATORIA — genera EXACTAMENTE estas 3 preguntas en este orden:
 

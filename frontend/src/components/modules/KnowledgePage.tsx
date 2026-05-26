@@ -8,6 +8,10 @@ import {
     loadMetrics, seedMasteryFromProfile, calculateGapAnalysis,
     getRecentActivity, totalChallengesSolved, LearningMetrics,
 } from '../../lib/learningMetrics';
+import { extractTextFromPDF } from '../../lib/pdfExtractor';
+import {
+    saveTheoryContext, loadTheoryContext, clearTheoryContext, TheoryContext,
+} from '../../lib/theoryContext';
 
 const ACCEPTED_EXTS = ['.py', '.ipynb', '.txt'];
 const FILE_ICONS: Record<string, string> = { '.py': '🐍', '.ipynb': '📓', '.txt': '📄' };
@@ -102,6 +106,37 @@ const KnowledgePage: React.FC = () => {
 
     const handleClear = () => { clearKnowledgeProfile(); setProfile(null); setPendingFiles([]); };
 
+    // ── PDF theory context ──────────────────────────────────────────────────
+    const pdfInputRef = useRef<HTMLInputElement>(null);
+    const [theoryCtx, setTheoryCtx] = useState<TheoryContext | null>(null);
+    const [pdfLoading, setPdfLoading] = useState(false);
+    const [pdfError, setPdfError] = useState('');
+
+    useEffect(() => { setTheoryCtx(loadTheoryContext()); }, []);
+
+    const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (!file.name.endsWith('.pdf')) { setPdfError('Solo se aceptan archivos .pdf'); return; }
+        setPdfLoading(true);
+        setPdfError('');
+        try {
+            const rawText = await extractTextFromPDF(file);
+            const ctx: TheoryContext = {
+                fileName: file.name,
+                rawText,
+                charCount: rawText.length,
+                extractedAt: Date.now(),
+            };
+            saveTheoryContext(ctx);
+            setTheoryCtx(ctx);
+        } catch {
+            setPdfError('Error al leer el PDF. Asegúrate de que no esté protegido con contraseña.');
+        }
+        setPdfLoading(false);
+        if (e.target) e.target.value = '';
+    };
+
     const formatDate = (ts: number) =>
         new Date(ts).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
         + ' · ' + new Date(ts).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
@@ -162,6 +197,55 @@ const KnowledgePage: React.FC = () => {
             {/* ── TAB: UPLOAD ── */}
             {activeTab === 'upload' && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                    {/* ── PDF de Teoría ── */}
+                    <div className="lg:col-span-2">
+                        <div className={`border rounded-2xl p-6 flex flex-col gap-4 transition-all ${theoryCtx ? 'border-blue-500/30 bg-blue-900/10' : 'border-light/10 bg-[#1a1a1a]'}`}>
+                            <div className="flex items-start justify-between gap-4">
+                                <div>
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className="text-xl">📘</span>
+                                        <span className="text-sm font-bold text-light">Material Teórico (PDF)</span>
+                                        {theoryCtx && (
+                                            <span className="text-xs bg-blue-900/40 border border-blue-500/30 text-blue-300 px-2 py-0.5 rounded-full">Contexto activo</span>
+                                        )}
+                                    </div>
+                                    <p className="text-xs text-light/40 leading-relaxed">
+                                        Sube el PDF oficial del tema que estás cursando. La IA usará este documento como universo cerrado de conocimiento: solo podrá generar ejercicios y preguntas con la sintaxis y conceptos que aparezcan en él.
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => pdfInputRef.current?.click()}
+                                    disabled={pdfLoading}
+                                    className="flex-shrink-0 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-bold px-4 py-2 rounded-xl transition-all"
+                                >
+                                    {pdfLoading ? 'Extrayendo…' : theoryCtx ? 'Cambiar PDF' : 'Subir PDF →'}
+                                </button>
+                                <input ref={pdfInputRef} type="file" accept=".pdf" onChange={handlePdfUpload} className="hidden" />
+                            </div>
+
+                            {pdfError && <p className="text-xs text-red-400">{pdfError}</p>}
+
+                            {theoryCtx && (
+                                <div className="bg-[#0f0f0f] rounded-xl p-4 space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-semibold text-blue-300">📄 {theoryCtx.fileName}</span>
+                                        <span className="text-xs text-light/30">{theoryCtx.charCount.toLocaleString()} caracteres extraídos</span>
+                                    </div>
+                                    <p className="text-xs text-light/40 italic leading-relaxed line-clamp-3">
+                                        {theoryCtx.rawText.slice(0, 300)}…
+                                    </p>
+                                    <button
+                                        onClick={() => { clearTheoryContext(); setTheoryCtx(null); }}
+                                        className="text-xs text-light/25 hover:text-red-400 transition-colors"
+                                    >
+                                        Eliminar contexto teórico
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
                     {/* Drop zone */}
                     <div className="flex flex-col gap-4">
                         <div
