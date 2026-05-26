@@ -117,6 +117,13 @@ async function deepSeekJSON<T>(systemPrompt: string, userPrompt: string): Promis
     }
 }
 
+// Hard guard for diagnostic questions — same pattern as questionPassesGuard for MCQ tests.
+// If a forbidden concept appears anywhere in the question text, it is discarded.
+function diagnosticQuestionPassesGuard(q: DiagnosticQuestion): boolean {
+    const text = [q.question, q.hint ?? '', q.skillRef].join(' ').toLowerCase();
+    return !CONCEPTOS_PROHIBIDOS.some(term => text.includes(term.toLowerCase()));
+}
+
 export async function generateDiagnosticExam(
     path: CareerPath,
     profileConcepts: string[]
@@ -134,7 +141,7 @@ ${pathContext}
 
 ${knowledgeBlock}
 
-REGLA ABSOLUTA: Solo puedes generar ejercicios sobre conceptos que aparezcan EXPLÍCITAMENTE en el material de conocimiento de arriba. Si un concepto no está en ese material, está PROHIBIDO incluirlo. Esto incluye funciones (def/return), clases, SQL, Git, pseudocódigo o cualquier otra cosa no mencionada.
+PROHIBICIÓN TOTAL E IRREVOCABLE: queda absolutamente prohibido incluir en cualquier pregunta los conceptos: def, return, funciones, parámetros, argumentos, SQL, Git, pseudocódigo, diccionarios, tuplas, clases, lambda, excepciones. Si un concepto no aparece textualmente en el material de arriba, NO PUEDE aparecer en ningún ejercicio.
 
 FORMATO DE RESPUESTA: Solo JSON válido, sin texto adicional, sin markdown.
 [
@@ -149,9 +156,19 @@ FORMATO DE RESPUESTA: Solo JSON válido, sin texto adicional, sin markdown.
     const userPrompt = `Camino: ${path.title} (objetivo: ${path.jobTitle})
 ${knownConcepts}
 
-Genera exactamente 5 ejercicios prácticos de programación basados ÚNICAMENTE en el material de conocimiento del sistema. Ordénalos de menor a mayor dificultad. Cada ejercicio debe ser resoluble escribiendo código o explicando con palabras lo que haría el código.`;
+Genera exactamente 5 ejercicios prácticos basados ÚNICAMENTE en el material del sistema. Sin funciones def. Sin return. Solo variables, operadores, condicionales if/elif/else, listas, bucles for/while, input(), print() y numpy básico si aparece en el material. Ordénalos de menor a mayor dificultad.`;
 
-    return await deepSeekJSON<DiagnosticQuestion[]>(systemPrompt, userPrompt);
+    // Hard filter + retry — same pattern as generateDailyTest
+    const MAX_ATTEMPTS = 3;
+    let clean: DiagnosticQuestion[] = [];
+
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        const raw = await deepSeekJSON<DiagnosticQuestion[]>(systemPrompt, userPrompt);
+        clean = raw.filter(diagnosticQuestionPassesGuard);
+        if (clean.length >= 5) break;
+    }
+
+    return clean.slice(0, 5);
 }
 
 export async function evaluateDiagnosticExam(
