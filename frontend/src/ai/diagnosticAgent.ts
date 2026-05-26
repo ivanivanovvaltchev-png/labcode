@@ -121,29 +121,35 @@ export async function generateDiagnosticExam(
     path: CareerPath,
     profileConcepts: string[]
 ): Promise<DiagnosticQuestion[]> {
-    const knownConcepts = profileConcepts.length > 0
-        ? `El estudiante ha subido ejercicios. Conceptos detectados: ${profileConcepts.join(', ')}.`
-        : 'El estudiante no ha subido ejercicios previos. Genera preguntas desde nivel básico.';
+    const knowledgeBlock = buildKnowledgeBlock();
+    const pathContext = buildPathContext(path);
 
-    const systemPrompt = `Eres un evaluador experto en programación. Tu tarea es generar un examen diagnóstico para determinar el nivel real de un estudiante.
+    const knownConcepts = profileConcepts.length > 0
+        ? `El estudiante ha subido ejercicios con estos conceptos detectados: ${profileConcepts.slice(0, 12).join(', ')}.`
+        : 'El estudiante no ha subido ejercicios previos.';
+
+    const systemPrompt = `Eres un evaluador experto en programación. Tu tarea es generar un diagnóstico inicial para conocer el punto de partida real del estudiante.
+
+${pathContext}
+
+${knowledgeBlock}
+
+REGLA ABSOLUTA: Solo puedes generar ejercicios sobre conceptos que aparezcan EXPLÍCITAMENTE en el material de conocimiento de arriba. Si un concepto no está en ese material, está PROHIBIDO incluirlo. Esto incluye funciones (def/return), clases, SQL, Git, pseudocódigo o cualquier otra cosa no mencionada.
 
 FORMATO DE RESPUESTA: Solo JSON válido, sin texto adicional, sin markdown.
 [
   {
     "id": "q1",
-    "question": "pregunta completa y clara aquí",
-    "hint": "pista opcional para el estudiante si no sabe por dónde empezar",
-    "skillRef": "nombre del skill que evalúa"
+    "question": "enunciado del ejercicio práctico",
+    "hint": "pista opcional si el estudiante no sabe por dónde empezar",
+    "skillRef": "concepto que evalúa"
   }
 ]`;
 
     const userPrompt = `Camino: ${path.title} (objetivo: ${path.jobTitle})
 ${knownConcepts}
 
-Genera exactamente 5 preguntas diagnósticas para evaluar el nivel real del estudiante en este camino.
-Las preguntas deben ser prácticas y concretas (no de verdadero/falso ni test).
-Mezcla teoría y código. Ordénalas de menor a mayor dificultad.
-Habilidades clave a evaluar: ${path.skills.filter(s => s.importance === 'critical').slice(0, 8).map(s => s.name).join(', ')}`;
+Genera exactamente 5 ejercicios prácticos de programación basados ÚNICAMENTE en el material de conocimiento del sistema. Ordénalos de menor a mayor dificultad. Cada ejercicio debe ser resoluble escribiendo código o explicando con palabras lo que haría el código.`;
 
     return await deepSeekJSON<DiagnosticQuestion[]>(systemPrompt, userPrompt);
 }
