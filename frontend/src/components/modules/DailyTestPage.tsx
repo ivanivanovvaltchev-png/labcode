@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import PythonCodeBlock, { splitQuestionCode } from '../ui/PythonCodeBlock';
 import { loadSelectedPath, loadSelfAssessments } from '../../lib/selectedPath';
 import { getPathById, getAvailableSkills } from '../../data/careerPaths';
 import { loadKnowledgeProfile } from '../../lib/knowledgeProfile';
@@ -217,14 +218,17 @@ const DailyTestPage: React.FC = () => {
                 </div>
 
                 <div className="space-y-6">
-                    {questions.map((q, idx) => (
+                    {questions.map((q, idx) => {
+                        const { prose, code } = splitQuestionCode(q.question);
+                        return (
                         <div key={q.id} className="bg-[#1a1a1a] border border-light/10 rounded-2xl p-6">
-                            <div className="flex items-start gap-3 mb-5">
+                            <div className="flex items-start gap-3 mb-1">
                                 <span className="w-7 h-7 rounded-full bg-violet-900/40 border border-violet-500/30 flex items-center justify-center text-sm font-bold text-violet-300 flex-shrink-0 mt-0.5">
                                     {idx + 1}
                                 </span>
-                                <p className="text-base font-semibold text-light leading-snug">{q.question}</p>
+                                <p className="text-base font-semibold text-light leading-snug">{prose}</p>
                             </div>
+                            {code && <PythonCodeBlock code={code} />}
                             <div className="space-y-2.5">
                                 {(['A', 'B', 'C'] as const).map(opt => (
                                     <button
@@ -242,7 +246,8 @@ const DailyTestPage: React.FC = () => {
                                 ))}
                             </div>
                         </div>
-                    ))}
+                        );
+                    })}
                 </div>
 
                 <div className="mt-8">
@@ -283,12 +288,14 @@ const DailyTestPage: React.FC = () => {
                     {questions.map((q, idx) => {
                         const chosen = answers[q.id];
                         const isCorrect = chosen === q.correctAnswer;
+                        const { prose: qProse, code: qCode } = splitQuestionCode(q.question);
                         return (
                             <div key={q.id} className={`border rounded-2xl p-5 ${isCorrect ? 'border-emerald-500/30 bg-emerald-900/10' : 'border-red-500/30 bg-red-900/10'}`}>
-                                <div className="flex items-start gap-2 mb-3">
+                                <div className="flex items-start gap-2 mb-1">
                                     <span className="text-lg flex-shrink-0">{isCorrect ? '✅' : '❌'}</span>
-                                    <p className="text-sm font-semibold text-light">{idx + 1}. {q.question}</p>
+                                    <p className="text-sm font-semibold text-light">{idx + 1}. {qProse}</p>
                                 </div>
+                                {qCode && <PythonCodeBlock code={qCode} />}
                                 <div className="space-y-1.5 mb-3">
                                     {(['A', 'B', 'C'] as const).map(opt => (
                                         <div key={opt} className={`flex items-start gap-2 text-xs px-3 py-2 rounded-lg ${

@@ -364,7 +364,7 @@ FORMATO — devuelve ÚNICAMENTE este JSON array, sin texto extra ni markdown:
 [
   {
     "id": "q1",
-    "question": "Pregunta teórica clara",
+    "question": "Pregunta teórica clara\nnumeros = [3, 1, 4]\nnumeros.sort()\nprint(numeros[0])",
     "options": { "A": "opción A", "B": "opción B", "C": "opción C" },
     "correctAnswer": "A",
     "explanation": "Por qué esa es la correcta",
@@ -374,6 +374,7 @@ FORMATO — devuelve ÚNICAMENTE este JSON array, sin texto extra ni markdown:
 
 REGLAS:
 - Las preguntas evalúan TEORÍA pura (¿qué hace?, ¿cuál es el resultado?, ¿qué error da?).
+- Cuando la pregunta incluya código Python, usa SALTOS DE LÍNEA REALES (\\n en JSON) para formatear cada sentencia en su propia línea. El código va después de la pregunta separado por \\n.
 - Las opciones incorrectas deben ser errores comunes plausibles, no tonterías obvias.
 - PROHIBIDO ABSOLUTO: def, return, funciones, SQL, diccionarios, tuplas, clases, Git, pseudocódigo, .split(), excepciones, ORM.`;
 
