@@ -10,7 +10,7 @@ import {
 } from '../../lib/learningMetrics';
 import { extractTextFromPDF } from '../../lib/pdfExtractor';
 import {
-    saveTheoryContext, loadTheoryContext, clearTheoryContext, TheoryContext,
+    addTheoryContext, removeTheoryContext, loadTheoryContexts, clearTheoryContext, TheoryContext,
 } from '../../lib/theoryContext';
 
 const ACCEPTED_EXTS = ['.py', '.ipynb', '.txt'];
@@ -108,34 +108,49 @@ const KnowledgePage: React.FC = () => {
 
     // ── PDF theory context ──────────────────────────────────────────────────
     const pdfInputRef = useRef<HTMLInputElement>(null);
-    const [theoryCtx, setTheoryCtx] = useState<TheoryContext | null>(null);
+    const [theoryCtxs, setTheoryCtxs] = useState<TheoryContext[]>([]);
     const [pdfLoading, setPdfLoading] = useState(false);
     const [pdfError, setPdfError] = useState('');
 
-    useEffect(() => { setTheoryCtx(loadTheoryContext()); }, []);
+    useEffect(() => { setTheoryCtxs(loadTheoryContexts()); }, []);
 
     const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        if (!file.name.endsWith('.pdf')) { setPdfError('Solo se aceptan archivos .pdf'); return; }
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
+        const pdfs = Array.from(files).filter(f => f.name.endsWith('.pdf'));
+        if (pdfs.length === 0) { setPdfError('Solo se aceptan archivos .pdf'); return; }
         setPdfLoading(true);
         setPdfError('');
         try {
-            const rawText = await extractTextFromPDF(file);
-            const ctx: TheoryContext = {
-                fileName: file.name,
-                rawText,
-                charCount: rawText.length,
-                extractedAt: Date.now(),
-            };
-            saveTheoryContext(ctx);
-            setTheoryCtx(ctx);
+            for (const file of pdfs) {
+                const rawText = await extractTextFromPDF(file);
+                const ctx: TheoryContext = {
+                    fileName: file.name,
+                    rawText,
+                    charCount: rawText.length,
+                    extractedAt: Date.now(),
+                };
+                addTheoryContext(ctx);
+            }
+            setTheoryCtxs(loadTheoryContexts());
         } catch {
             setPdfError('Error al leer el PDF. Asegúrate de que no esté protegido con contraseña.');
         }
         setPdfLoading(false);
         if (e.target) e.target.value = '';
     };
+
+    const handleRemovePdf = (fileName: string) => {
+        removeTheoryContext(fileName);
+        setTheoryCtxs(loadTheoryContexts());
+    };
+
+    const handleClearAllPdfs = () => {
+        clearTheoryContext();
+        setTheoryCtxs([]);
+    };
+
+    const totalPdfChars = theoryCtxs.reduce((s, c) => s + c.charCount, 0);
 
     const formatDate = (ts: number) =>
         new Date(ts).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
@@ -198,49 +213,68 @@ const KnowledgePage: React.FC = () => {
             {activeTab === 'upload' && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-                    {/* ── PDF de Teoría ── */}
+                    {/* ── PDFs de Teoría ── */}
                     <div className="lg:col-span-2">
-                        <div className={`border rounded-2xl p-6 flex flex-col gap-4 transition-all ${theoryCtx ? 'border-blue-500/30 bg-blue-900/10' : 'border-light/10 bg-[#1a1a1a]'}`}>
+                        <div className={`border rounded-2xl p-6 flex flex-col gap-4 transition-all ${theoryCtxs.length > 0 ? 'border-blue-500/30 bg-blue-900/10' : 'border-light/10 bg-[#1a1a1a]'}`}>
                             <div className="flex items-start justify-between gap-4">
                                 <div>
                                     <div className="flex items-center gap-2 mb-1">
                                         <span className="text-xl">📘</span>
-                                        <span className="text-sm font-bold text-light">Material Teórico (PDF)</span>
-                                        {theoryCtx && (
-                                            <span className="text-xs bg-blue-900/40 border border-blue-500/30 text-blue-300 px-2 py-0.5 rounded-full">Contexto activo</span>
+                                        <span className="text-sm font-bold text-light">Material Teórico (PDFs)</span>
+                                        {theoryCtxs.length > 0 && (
+                                            <span className="text-xs bg-blue-900/40 border border-blue-500/30 text-blue-300 px-2 py-0.5 rounded-full">
+                                                {theoryCtxs.length} PDF{theoryCtxs.length > 1 ? 's' : ''} · {totalPdfChars.toLocaleString()} caracteres
+                                            </span>
                                         )}
                                     </div>
                                     <p className="text-xs text-light/40 leading-relaxed">
-                                        Sube el PDF oficial del tema que estás cursando. La IA usará este documento como universo cerrado de conocimiento: solo podrá generar ejercicios y preguntas con la sintaxis y conceptos que aparezcan en él.
+                                        Sube los PDFs oficiales de los temas que estás cursando. La IA usará estos documentos como universo cerrado de conocimiento. Ve añadiendo nuevos PDFs según avances en el Máster.
                                     </p>
                                 </div>
-                                <button
-                                    onClick={() => pdfInputRef.current?.click()}
-                                    disabled={pdfLoading}
-                                    className="flex-shrink-0 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-bold px-4 py-2 rounded-xl transition-all"
-                                >
-                                    {pdfLoading ? 'Extrayendo…' : theoryCtx ? 'Cambiar PDF' : 'Subir PDF →'}
-                                </button>
-                                <input ref={pdfInputRef} type="file" accept=".pdf" onChange={handlePdfUpload} className="hidden" />
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                    <button
+                                        onClick={() => pdfInputRef.current?.click()}
+                                        disabled={pdfLoading}
+                                        className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-bold px-4 py-2 rounded-xl transition-all"
+                                    >
+                                        {pdfLoading ? 'Extrayendo…' : '+ Añadir PDF'}
+                                    </button>
+                                </div>
+                                <input ref={pdfInputRef} type="file" accept=".pdf" multiple onChange={handlePdfUpload} className="hidden" />
                             </div>
 
                             {pdfError && <p className="text-xs text-red-400">{pdfError}</p>}
 
-                            {theoryCtx && (
-                                <div className="bg-[#0f0f0f] rounded-xl p-4 space-y-2">
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-xs font-semibold text-blue-300">📄 {theoryCtx.fileName}</span>
-                                        <span className="text-xs text-light/30">{theoryCtx.charCount.toLocaleString()} caracteres extraídos</span>
-                                    </div>
-                                    <p className="text-xs text-light/40 italic leading-relaxed line-clamp-3">
-                                        {theoryCtx.rawText.slice(0, 300)}…
-                                    </p>
-                                    <button
-                                        onClick={() => { clearTheoryContext(); setTheoryCtx(null); }}
-                                        className="text-xs text-light/25 hover:text-red-400 transition-colors"
-                                    >
-                                        Eliminar contexto teórico
-                                    </button>
+                            {theoryCtxs.length > 0 && (
+                                <div className="space-y-2">
+                                    {theoryCtxs.map(ctx => (
+                                        <div key={ctx.fileName} className="bg-[#0f0f0f] rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+                                            <div className="min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xs font-semibold text-blue-300 truncate">📄 {ctx.fileName}</span>
+                                                    <span className="text-xs text-light/30 flex-shrink-0">{ctx.charCount.toLocaleString()} chars</span>
+                                                </div>
+                                                <p className="text-xs text-light/30 italic truncate mt-0.5">
+                                                    {ctx.rawText.slice(0, 120)}…
+                                                </p>
+                                            </div>
+                                            <button
+                                                onClick={() => handleRemovePdf(ctx.fileName)}
+                                                className="text-light/25 hover:text-red-400 transition-colors text-xs flex-shrink-0"
+                                                title="Eliminar este PDF"
+                                            >
+                                                ✕
+                                            </button>
+                                        </div>
+                                    ))}
+                                    {theoryCtxs.length > 1 && (
+                                        <button
+                                            onClick={handleClearAllPdfs}
+                                            className="text-xs text-light/20 hover:text-red-400 transition-colors"
+                                        >
+                                            Eliminar todos los PDFs
+                                        </button>
+                                    )}
                                 </div>
                             )}
                         </div>

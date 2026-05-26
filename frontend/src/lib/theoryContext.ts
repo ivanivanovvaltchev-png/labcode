@@ -4,22 +4,35 @@ const STORAGE_KEY = 'labcode_theory_context';
 
 export interface TheoryContext {
     fileName: string;
-    rawText: string;        // full extracted text from the PDF
+    rawText: string;
     charCount: number;
-    extractedAt: number;    // Unix ms timestamp
+    extractedAt: number;
 }
 
 // ─── Storage ──────────────────────────────────────────────────────────────────
 
-export function saveTheoryContext(ctx: TheoryContext): void {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(ctx));
-}
-
-export function loadTheoryContext(): TheoryContext | null {
+export function loadTheoryContexts(): TheoryContext[] {
     try {
         const raw = localStorage.getItem(STORAGE_KEY);
-        return raw ? (JSON.parse(raw) as TheoryContext) : null;
-    } catch { return null; }
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        // Migrate from old single-object format
+        if (Array.isArray(parsed)) return parsed as TheoryContext[];
+        if (parsed && typeof parsed === 'object') return [parsed as TheoryContext];
+        return [];
+    } catch { return []; }
+}
+
+export function addTheoryContext(ctx: TheoryContext): void {
+    const existing = loadTheoryContexts();
+    // Replace if same file name, otherwise append
+    const filtered = existing.filter(c => c.fileName !== ctx.fileName);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([...filtered, ctx]));
+}
+
+export function removeTheoryContext(fileName: string): void {
+    const existing = loadTheoryContexts();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(existing.filter(c => c.fileName !== fileName)));
 }
 
 export function clearTheoryContext(): void {
@@ -29,26 +42,21 @@ export function clearTheoryContext(): void {
 // ─── Prompt helpers ───────────────────────────────────────────────────────────
 
 /**
- * Returns a trimmed slice of the theory text suitable for injecting into a
- * DeepSeek system prompt. Keeps the most informative content within a safe
- * character budget (default 3000 chars ≈ ~750 tokens).
+ * Returns the combined theory text from all uploaded PDFs, trimmed to maxChars.
+ * Each document is prefixed with its file name so the AI can distinguish sources.
  */
 export function getContextForPrompt(maxChars = 3000): string | null {
-    const ctx = loadTheoryContext();
-    if (!ctx) return null;
-    const text = ctx.rawText.slice(0, maxChars);
-    // If truncated, end at the last complete sentence
-    if (ctx.rawText.length > maxChars) {
-        const lastDot = Math.max(text.lastIndexOf('.'), text.lastIndexOf('\n'));
-        return lastDot > maxChars * 0.6 ? text.slice(0, lastDot + 1) : text;
-    }
-    return text;
+    const contexts = loadTheoryContexts();
+    if (contexts.length === 0) return null;
+    const combined = contexts
+        .map(c => `[${c.fileName}]\n${c.rawText}`)
+        .join('\n\n---\n\n');
+    if (combined.length <= maxChars) return combined;
+    const trimmed = combined.slice(0, maxChars);
+    const lastDot = Math.max(trimmed.lastIndexOf('.'), trimmed.lastIndexOf('\n'));
+    return lastDot > maxChars * 0.6 ? trimmed.slice(0, lastDot + 1) : trimmed;
 }
 
-/**
- * Returns true if a valid theory context has been loaded from a PDF.
- * Used by the UI to show/hide the "material loaded" badge.
- */
 export function hasTheoryContext(): boolean {
-    return loadTheoryContext() !== null;
+    return loadTheoryContexts().length > 0;
 }
