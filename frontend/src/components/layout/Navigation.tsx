@@ -12,10 +12,8 @@ interface NavigationProps {
 }
 
 const pathColor: Record<string, { cls: string; bar: string }> = {
-    'python-dev':       { cls: 'text-yellow-400 bg-yellow-900/20 border-yellow-500/40', bar: 'bg-yellow-400' },
-    'frontend-dev':     { cls: 'text-pink-400 bg-pink-900/20 border-pink-500/40',       bar: 'bg-pink-400'   },
-    'fullstack-python': { cls: 'text-blue-400 bg-blue-900/20 border-blue-500/40',       bar: 'bg-blue-400'   },
-    'master-complete':  { cls: 'text-violet-400 bg-violet-900/20 border-violet-500/40', bar: 'bg-violet-400' },
+    'python-junior': { cls: 'text-yellow-400 bg-yellow-900/20 border-yellow-500/40', bar: 'bg-yellow-400' },
+    'fullstack-dev': { cls: 'text-violet-400 bg-violet-900/20 border-violet-500/40', bar: 'bg-violet-400' },
 };
 
 const Navigation: React.FC<NavigationProps> = ({ user = 'Estudiante', xp = 0, userId }) => {
@@ -27,7 +25,7 @@ const Navigation: React.FC<NavigationProps> = ({ user = 'Estudiante', xp = 0, us
 
     const selectedPathId = loadSelectedPath();
     const activePath = selectedPathId ? CAREER_PATHS.find(p => p.id === selectedPathId) : null;
-    const col = selectedPathId ? (pathColor[selectedPathId] ?? pathColor['master-complete']) : null;
+    const col = selectedPathId ? (pathColor[selectedPathId] ?? pathColor['fullstack-dev']) : null;
 
     const handleSignOut = async () => {
         setSigningOut(true);

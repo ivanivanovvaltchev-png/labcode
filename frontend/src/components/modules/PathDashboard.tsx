@@ -22,10 +22,8 @@ const taskTypeBadge: Record<string, string> = {
 };
 
 const pathColors: Record<string, { text: string; bar: string; border: string }> = {
-    'python-dev':       { text: 'text-yellow-400', bar: 'bg-yellow-400', border: 'border-yellow-500/30' },
-    'frontend-dev':     { text: 'text-pink-400',   bar: 'bg-pink-400',   border: 'border-pink-500/30'   },
-    'fullstack-python': { text: 'text-blue-400',   bar: 'bg-blue-400',   border: 'border-blue-500/30'   },
-    'master-complete':  { text: 'text-violet-400', bar: 'bg-violet-400', border: 'border-violet-500/30' },
+    'python-junior': { text: 'text-yellow-400', bar: 'bg-yellow-400', border: 'border-yellow-500/30' },
+    'fullstack-dev': { text: 'text-violet-400', bar: 'bg-violet-400', border: 'border-violet-500/30' },
 };
 
 const PathDashboard: React.FC = () => {
@@ -62,7 +60,7 @@ const PathDashboard: React.FC = () => {
 
     const diagResult = pathId ? getDiagnosticResult(pathId) : null;
     const { pct, mastered, total, criticalMastered, criticalTotal } = calculateProgress(path, profileConcepts, assessments);
-    const col = pathColors[path.id] ?? pathColors['master-complete'];
+    const col = pathColors[path.id] ?? pathColors['fullstack-dev'];
 
     const masteredSkills = path.skills.filter(s => isSkillMastered(s, profileConcepts, assessments));
     const pendingSkills = path.skills.filter(s => !isSkillMastered(s, profileConcepts, assessments));

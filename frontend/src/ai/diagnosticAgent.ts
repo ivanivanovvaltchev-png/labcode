@@ -188,6 +188,20 @@ ${JSON.stringify(questionsAndAnswers, null, 2)}`;
     return await deepSeekJSON<ExamEvaluation>(systemPrompt, userPrompt);
 }
 
+// Builds the path-context block injected into every AI call.
+// This freezes the content scope to the chosen career track.
+function buildPathContext(path: CareerPath): string {
+    if (path.id === 'python-junior') {
+        return `CONTEXTO DEL CAMINO — Fast-Track: Desarrollador Python Junior.
+Objetivo único: empleabilidad en Python backend lo antes posible.
+El sistema está CONGELADO en Python puro + SQL + Git.
+PROHIBICIÓN ABSOLUTA E IRREVOCABLE: ningún contenido de HTML, CSS, JavaScript, React, Django ni frontend de ningún tipo puede aparecer. El alumno en este camino no los necesita para entrar al mercado backend y saturarle con ellos arruina su progreso.`;
+    }
+    return `CONTEXTO DEL CAMINO — Full-Stack Developer.
+Objetivo: completar el Máster completo tras consolidar Python.
+Una vez dominado el bloque Python, el alumno puede avanzar hacia frontend (HTML, CSS, JS, React), Django y despliegue.`;
+}
+
 export async function generateDailyPlan(
     path: CareerPath,
     _weakAreas: string[],
@@ -202,7 +216,11 @@ export async function generateDailyPlan(
         ? habilidadesValidadas.join(', ')
         : skills.slice(0, 5).map(s => s.name).join(', ');
 
+    const pathContext = buildPathContext(path);
+
     const systemPrompt = `Tu único objetivo es generar un JSON con exactamente 3 tarjetas.
+
+${pathContext}
 
 REGLA ABSOLUTA DE CONTENIDO: Los conceptos, ejemplos de código y sintaxis que uses en las descriptions deben pertenecer ÚNICAMENTE a esta lista de habilidades validadas del estudiante:
 ${allowList}
@@ -283,7 +301,7 @@ function questionPassesBlacklist(q: TestQuestion): boolean {
  * If fewer than the target number survive, the call is retried (max 3 attempts).
  */
 export async function generateDailyTest(
-    _path: CareerPath,
+    path: CareerPath,
     availableSkills: PathSkill[],
     recentFailedSkills: string[],
     habilidadesValidadas: string[]
@@ -305,7 +323,11 @@ export async function generateDailyTest(
         ? habilidadesValidadas.join(', ')
         : availableSkills.slice(0, 5).map(s => s.name).join(', ');
 
+    const pathContext = buildPathContext(path);
+
     const systemPrompt = `Eres un evaluador de teoría de programación Python. Generas preguntas de opción múltiple (A, B, C) sobre conceptos teóricos.
+
+${pathContext}
 
 REGLA ABSOLUTA: Solo puedes generar preguntas sobre conceptos de esta lista de habilidades validadas del estudiante:
 ${allowList}
