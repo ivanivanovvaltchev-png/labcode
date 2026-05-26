@@ -72,7 +72,14 @@ export function addXP(amount: number, entry: Omit<ActivityEntry, 'xpEarned' | 't
 }
 
 export function isOnboardingComplete(pathId: string): boolean {
-    return load().onboardingCompleted[pathId] === true;
+    const p = load();
+    // Explicit flag for this path
+    if (p.onboardingCompleted[pathId] === true) return true;
+    // Path changed: user already did onboarding on a previous path → skip
+    if (Object.values(p.onboardingCompleted).some(v => v === true)) return true;
+    // User already has a diagnostic result for this path → onboarding was done
+    if (p.diagnosticResults[pathId] != null) return true;
+    return false;
 }
 
 export function markOnboardingComplete(pathId: string): void {
