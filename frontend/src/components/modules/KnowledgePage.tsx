@@ -281,19 +281,20 @@ const KnowledgePage: React.FC = () => {
                     </div>
 
                     {/* Drop zone */}
-                    <div className="flex flex-col gap-4">
+                    <div className="flex flex-col gap-4 h-full">
+                        {/* Dropzone — stretches to fill available height */}
                         <div
                             onDragOver={e => { e.preventDefault(); setDragOver(true); }}
                             onDragLeave={() => setDragOver(false)}
                             onDrop={handleDrop}
                             onClick={() => fileInputRef.current?.click()}
-                            className={`border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer transition-all ${
-                                dragOver ? 'border-emerald-500 bg-emerald-500/10' : 'border-light/20 hover:border-emerald-500/50 hover:bg-emerald-500/5'
+                            className={`flex-1 flex flex-col items-center justify-center border-2 border-dashed rounded-2xl cursor-pointer transition-all min-h-[180px] ${
+                                dragOver ? 'border-emerald-500 bg-emerald-500/10' : 'border-light/15 hover:border-emerald-500/50 hover:bg-emerald-500/5'
                             }`}
                         >
                             <div className="text-5xl mb-4">📁</div>
                             <div className="text-base font-semibold text-light/70 mb-1">Arrastra tus archivos aquí</div>
-                            <div className="text-sm text-light/40 mb-3">o haz clic para seleccionarlos</div>
+                            <div className="text-sm text-light/40 mb-4">o haz clic para seleccionarlos</div>
                             <div className="flex justify-center gap-2">
                                 {ACCEPTED_EXTS.map(ext => (
                                     <span key={ext} className="text-xs bg-[#0f0f0f] border border-light/10 text-light/50 px-2.5 py-1 rounded-full">
