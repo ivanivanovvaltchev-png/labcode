@@ -54,7 +54,6 @@ const MentorPage: React.FC = () => {
     const hasSkillContext = !!(paramTaskTitle || paramSkillRef);
     const taskIndex   = paramTaskIndex  !== null ? parseInt(paramTaskIndex)  : null;
     const totalTasks  = paramTotalTasks !== null ? parseInt(paramTotalTasks) : null;
-    const isLastTask  = taskIndex !== null && totalTasks !== null && taskIndex + 1 >= totalTasks;
 
     const [exercise, setExercise] = useState('');
     const [exerciseSubmitted, setExerciseSubmitted] = useState(false);
@@ -70,6 +69,11 @@ const MentorPage: React.FC = () => {
     const [manuallyCompleted, setManuallyCompleted] = useState(false);
     const [currentSkillContext, setCurrentSkillContext] = useState<string | null>(null);
     const [showCompletionPopup, setShowCompletionPopup] = useState(false);
+    // Saved before URL params are cleared so the popup still has them at completion time
+    const [savedTaskId, setSavedTaskId] = useState<string | null>(null);
+    const [savedTaskIndex, setSavedTaskIndex] = useState<number | null>(null);
+    const [savedTotalTasks, setSavedTotalTasks] = useState<number | null>(null);
+    const [isFromTaskCard, setIsFromTaskCard] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const getKnowledgeBlock = () => {
@@ -93,9 +97,14 @@ const MentorPage: React.FC = () => {
         setCompletedSessions(loadCompletedSessions());
 
         if (hasSkillContext) {
-            // Coming from a skill/task button — auto-generate exercise
+            // Coming from a skill/task button — save params to state BEFORE clearing URL
             const skillLabel = paramTaskTitle ?? paramSkillRef ?? '';
             setCurrentSkillContext(skillLabel);
+            setIsFromTaskCard(true);
+            if (paramTaskId)     setSavedTaskId(paramTaskId);
+            if (taskIndex !== null)  setSavedTaskIndex(taskIndex);
+            if (totalTasks !== null) setSavedTotalTasks(totalTasks);
+
             setIsGeneratingExercise(true);
             setExerciseSubmitted(true);
 
@@ -153,15 +162,15 @@ const MentorPage: React.FC = () => {
     // Open popup the first time isCompleted turns true (only when coming from a task card)
     const popupShownRef = useRef(false);
     useEffect(() => {
-        if (isCompleted && hasSkillContext && !popupShownRef.current) {
+        if (isCompleted && isFromTaskCard && !popupShownRef.current) {
             popupShownRef.current = true;
             setShowCompletionPopup(true);
         }
-    }, [isCompleted, hasSkillContext]);
+    }, [isCompleted, isFromTaskCard]);
 
     const handleNextTask = () => {
         const pathId = loadSelectedPath();
-        if (pathId && paramTaskId) completeTask(pathId, paramTaskId);
+        if (pathId && savedTaskId) completeTask(pathId, savedTaskId);
         saveCompletedSession({ exercise, messages, completedAt: Date.now(), isVariantOf: variantOrigin ?? undefined });
         clearActiveSession();
         navigate('/camino');
@@ -260,8 +269,8 @@ const MentorPage: React.FC = () => {
                         <div className="text-6xl mb-4">🏆</div>
                         <h2 className="text-2xl font-bold text-light mb-1">¡Completado!</h2>
                         <p className="text-sm text-emerald-400 font-semibold mb-1">{currentSkillContext}</p>
-                        {taskIndex !== null && totalTasks !== null && (
-                            <p className="text-xs text-light/30 mb-6">Tarjeta {taskIndex + 1} de {totalTasks}</p>
+                        {savedTaskIndex !== null && savedTotalTasks !== null && (
+                            <p className="text-xs text-light/30 mb-6">Tarjeta {savedTaskIndex + 1} de {savedTotalTasks}</p>
                         )}
 
                         <div className="space-y-3">
@@ -269,7 +278,9 @@ const MentorPage: React.FC = () => {
                                 onClick={handleNextTask}
                                 className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-2xl text-sm transition-all"
                             >
-                                {isLastTask ? '🎉 Terminar entrenamiento de hoy' : `➡️ Siguiente tarjeta (${taskIndex !== null ? taskIndex + 2 : ''}/${totalTasks})`}
+                                {savedTaskIndex !== null && savedTotalTasks !== null && savedTaskIndex + 1 >= savedTotalTasks
+                                    ? '🎉 Terminar entrenamiento de hoy'
+                                    : `➡️ Siguiente tarjeta (${savedTaskIndex !== null ? savedTaskIndex + 2 : ''}/${savedTotalTasks})`}
                             </button>
                             <button
                                 onClick={handleVariantFromPopup}
