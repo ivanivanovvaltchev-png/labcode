@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { callDeepSeekForMentor, callDeepSeekForMentorVariant, ChatMessage } from '../../ai/agents';
 import { loadKnowledgeProfile, buildKnowledgeBlock, buildPathBlock } from '../../lib/knowledgeProfile';
 import { loadCompletedSessions, saveCompletedSession, CompletedSession } from '../../lib/completedSessions';
-import { completeTask } from '../../lib/userProgress';
+import { completeTask, getDailyPlan } from '../../lib/userProgress';
 import { loadSelectedPath, loadSelfAssessments } from '../../lib/selectedPath';
 import { getPathById, isSkillMastered } from '../../data/careerPaths';
 import { generateSkillExercise } from '../../ai/diagnosticAgent';
@@ -170,10 +170,56 @@ const MentorPage: React.FC = () => {
 
     const handleNextTask = () => {
         const pathId = loadSelectedPath();
+        // Mark current task complete FIRST so getDailyPlan returns the updated state
         if (pathId && savedTaskId) completeTask(pathId, savedTaskId);
         saveCompletedSession({ exercise, messages, completedAt: Date.now(), isVariantOf: variantOrigin ?? undefined });
         clearActiveSession();
-        navigate('/camino');
+
+        // Look for next uncompleted task (after current index)
+        const plan = pathId ? getDailyPlan(pathId) : null;
+        const nextTask = plan?.tasks.find((t, i) => !t.completed && i > (savedTaskIndex ?? -1)) ?? null;
+
+        setShowCompletionPopup(false);
+        popupShownRef.current = false;
+        completionRecordedRef.current = false;
+
+        if (nextTask && plan) {
+            const nextIdx = plan.tasks.indexOf(nextTask);
+            // Reset state and generate next exercise in-place (no navigation)
+            setExercise('');
+            setMessages([]);
+            setInput('');
+            setVariantOrigin(null);
+            setManuallyCompleted(false);
+            setIsFromTaskCard(true);
+            setCurrentSkillContext(nextTask.title);
+            setSavedTaskId(nextTask.id);
+            setSavedTaskIndex(nextIdx);
+            setSavedTotalTasks(plan.tasks.length);
+            setExerciseSubmitted(true);
+            setIsGeneratingExercise(true);
+
+            const path = pathId ? getPathById(pathId) : null;
+            const profile = loadKnowledgeProfile();
+
+            generateSkillExercise(
+                nextTask.skillRef,
+                path?.title ?? 'Programación',
+                profile?.concepts ?? []
+            ).then(async (generatedExercise) => {
+                setExercise(generatedExercise);
+                setIsGeneratingExercise(false);
+                setIsLoading(true);
+                const resp = await callDeepSeekForMentor(generatedExercise, [], 'init', getKnowledgeBlock());
+                setMessages([{ role: 'assistant', content: resp }]);
+                setIsLoading(false);
+            }).catch(() => {
+                setIsGeneratingExercise(false);
+                setExerciseSubmitted(false);
+            });
+        } else {
+            navigate('/camino');
+        }
     };
 
     const handleVariantFromPopup = () => {

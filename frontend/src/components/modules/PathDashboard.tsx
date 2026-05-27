@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { getPathById, isSkillMastered, calculateProgress, getAvailableSkills } from '../../data/careerPaths';
 import { loadSelectedPath, loadSelfAssessments, saveSelfAssessments } from '../../lib/selectedPath';
 import { loadKnowledgeProfile } from '../../lib/knowledgeProfile';
-import { isOnboardingComplete, getDiagnosticResult, getDailyPlan, completeTask, todayString, saveDailyPlan } from '../../lib/userProgress';
-import { generateDailyPlan } from '../../ai/diagnosticAgent';
+import { isOnboardingComplete, getDiagnosticResult, getDailyPlan, completeTask, todayString, saveDailyPlan, saveMasterFeedback } from '../../lib/userProgress';
+import { generateDailyPlan, generateMasterFeedback } from '../../ai/diagnosticAgent';
 import { recordPractice, getHabilidadesValidadas } from '../../lib/learningMetrics';
 import { getTodayTest } from '../../lib/dailyTest';
 
@@ -32,6 +32,7 @@ const PathDashboard: React.FC = () => {
     const [profileConcepts, setProfileConcepts] = useState<string[]>([]);
     const [dailyPlan, setDailyPlan] = useState<ReturnType<typeof getDailyPlan>>(null);
     const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
+    const [isGeneratingFeedback, setIsGeneratingFeedback] = useState(false);
     const [showSkillsDetail, setShowSkillsDetail] = useState(false);
 
     const pathId = loadSelectedPath();
@@ -45,6 +46,21 @@ const PathDashboard: React.FC = () => {
         const existing = getDailyPlan(pathId);
         if (existing && existing.date === todayString()) setDailyPlan(existing);
     }, [pathId]);
+
+    // Generate master feedback once when all tasks are done and none exists yet
+    useEffect(() => {
+        if (!pathId || !dailyPlan) return;
+        const allDone = dailyPlan.tasks.length > 0 && dailyPlan.tasks.every(t => t.completed);
+        if (!allDone || dailyPlan.masterFeedback || isGeneratingFeedback) return;
+        setIsGeneratingFeedback(true);
+        const p = path;
+        generateMasterFeedback(dailyPlan.tasks, p?.title ?? 'Programación Python').then(feedback => {
+            saveMasterFeedback(pathId, feedback);
+            setDailyPlan(getDailyPlan(pathId));
+            setIsGeneratingFeedback(false);
+        }).catch(() => setIsGeneratingFeedback(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [dailyPlan?.tasks.filter(t => t.completed).length, pathId]);
 
     const toggleAssessment = useCallback((skillId: string) => {
         if (!pathId) return;
@@ -107,6 +123,7 @@ const PathDashboard: React.FC = () => {
 
     const completedCount = dailyPlan?.tasks.filter(t => t.completed).length ?? 0;
     const totalTasks = dailyPlan?.tasks.length ?? 0;
+    const allTasksDone = totalTasks > 0 && completedCount === totalTasks;
 
     return (
         <div className="max-w-6xl mx-auto px-6 sm:px-10 lg:px-16 py-10 space-y-6">
@@ -179,7 +196,7 @@ const PathDashboard: React.FC = () => {
                             </p>
                         )}
                     </div>
-                    {dailyPlan && !isGeneratingPlan && (
+                    {dailyPlan && !isGeneratingPlan && allTasksDone && (
                         <button
                             onClick={handleGeneratePlan}
                             className="text-sm text-light/30 hover:text-light/60 transition-colors border border-light/10 px-4 py-2 rounded-lg"
@@ -215,6 +232,34 @@ const PathDashboard: React.FC = () => {
                             ))}
                         </div>
                         <p className="text-base text-light/40">Creando tu rutina personalizada…</p>
+                    </div>
+                )}
+
+                {/* Master feedback — shown when all tasks are done */}
+                {allTasksDone && (
+                    <div className="mb-6 border border-amber-500/25 bg-amber-900/10 rounded-2xl px-6 py-5">
+                        <div className="flex items-center gap-3 mb-3">
+                            <span className="text-2xl">🧙</span>
+                            <div>
+                                <p className="text-sm font-bold text-amber-300">Opinión del Maestro</p>
+                                <p className="text-xs text-light/30">Entrenamiento de hoy completado</p>
+                            </div>
+                            <div className="ml-auto text-xs bg-emerald-900/40 border border-emerald-500/30 text-emerald-400 font-bold px-3 py-1 rounded-full">
+                                🏆 {completedCount}/{totalTasks} completadas
+                            </div>
+                        </div>
+                        {isGeneratingFeedback ? (
+                            <div className="flex items-center gap-2 text-sm text-light/40">
+                                <span className="w-2 h-2 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                                <span className="w-2 h-2 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                                <span className="w-2 h-2 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                                <span className="ml-1">El Maestro está reflexionando…</span>
+                            </div>
+                        ) : (
+                            <p className="text-sm text-light/70 leading-relaxed italic">
+                                &ldquo;{dailyPlan?.masterFeedback ?? '…'}&rdquo;
+                            </p>
+                        )}
                     </div>
                 )}
 

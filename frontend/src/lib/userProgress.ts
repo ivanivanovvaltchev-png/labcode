@@ -22,6 +22,7 @@ export interface DailyPlan {
     date: string;          // YYYY-MM-DD
     tasks: DailyTask[];
     generatedAt: number;
+    masterFeedback?: string;
 }
 
 export interface ActivityEntry {
@@ -130,6 +131,14 @@ export function completeTask(pathId: string, taskId: string): void {
         timestamp: Date.now(),
     }, ...p.activityLog].slice(0, 100);
     save(p);
+}
+
+export function saveMasterFeedback(pathId: string, feedback: string): void {
+    const p = load();
+    if (p.dailyPlans[pathId]) {
+        p.dailyPlans[pathId].masterFeedback = feedback;
+        save(p);
+    }
 }
 
 export function getActivityLog(): ActivityEntry[] { return load().activityLog; }

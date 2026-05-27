@@ -1,5 +1,6 @@
 import { CareerPath, PathSkill } from '../data/careerPaths';
 import { TestQuestion } from '../lib/dailyTest';
+import type { DailyTask } from '../lib/userProgress';
 import {
     HABILIDADES_PERMITIDAS,
     CONCEPTOS_PROHIBIDOS,
@@ -310,6 +311,29 @@ Ejercicio guiado paso a paso con numpy: np.zeros(), np.ones(), np.arange(), arra
         }
         return task;
     });
+}
+
+// ─── Master Feedback ─────────────────────────────────────────────────────────
+
+export async function generateMasterFeedback(tasks: DailyTask[], pathTitle: string): Promise<string> {
+    const taskList = tasks.map((t, i) =>
+        `  ${i + 1}. [${t.type === 'review' ? 'Repaso' : t.type === 'practice' ? 'Práctica' : 'Aprender'}] ${t.title}`
+    ).join('\n');
+
+    const systemPrompt = `Eres el Maestro de LabCode, un mentor sabio, cercano y motivador. Tu misión es dar una opinión breve pero significativa al alumno tras completar su sesión de entrenamiento diario.
+
+Camino del alumno: ${pathTitle}
+
+INSTRUCCIONES:
+- Felicita al alumno de forma genuina y específica (menciona qué practicó)
+- Señala con tacto qué área merece más atención mañana
+- Cierra con una frase motivadora que prepare al alumno para el siguiente día
+- Tono: sabio, cercano, humano. Ni condescendiente ni exageradamente eufórico
+- Máximo 110 palabras. Sin títulos ni emojis excesivos. Solo el texto de la opinión.`;
+
+    const userPrompt = `El alumno completó hoy las siguientes tarjetas:\n${taskList}\n\nEscribe la opinión del Maestro.`;
+
+    return deepSeekRaw(systemPrompt, userPrompt);
 }
 
 // ─── Daily Mini-Test Generator ────────────────────────────────────────────────
