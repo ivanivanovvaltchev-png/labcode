@@ -350,38 +350,59 @@ const KnowledgePage: React.FC = () => {
                     {/* Profile panel */}
                     <div>
                         {profile ? (
-                            <div className="bg-[#1a1a1a] border border-emerald-500/20 rounded-2xl p-6 flex flex-col gap-5">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-sm font-semibold text-emerald-400 uppercase tracking-wider">✅ Perfil activo</span>
-                                    <span className="text-xs text-light/30">{formatDate(profile.updatedAt)}</span>
-                                </div>
-                                <div>
-                                    <div className="text-xs text-light/40 mb-2">Resumen de nivel</div>
-                                    <p className="text-sm text-light/70 leading-relaxed bg-[#0f0f0f] rounded-xl p-3">{profile.summary}</p>
-                                </div>
-                                <div>
-                                    <div className="text-xs text-light/40 mb-2">Conceptos detectados ({profile.concepts.length})</div>
-                                    <div className="flex flex-wrap gap-2">
-                                        {profile.concepts.map(c => (
-                                            <span key={c} className="bg-emerald-900/30 border border-emerald-500/30 text-emerald-300 text-xs px-2.5 py-1 rounded-full">{c}</span>
-                                        ))}
+                            <div className="bg-[#1a1a1a] border border-emerald-500/20 rounded-2xl overflow-hidden flex flex-col">
+
+                                {/* Header */}
+                                <div className="flex items-center justify-between px-6 py-4 border-b border-emerald-500/10">
+                                    <div className="flex items-center gap-2">
+                                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                                        <span className="text-sm font-bold text-emerald-400 uppercase tracking-wider">Perfil activo</span>
                                     </div>
+                                    <span className="text-xs text-light/25">{formatDate(profile.updatedAt)}</span>
                                 </div>
-                                {profile.analyzedFiles.length > 0 && (
+
+                                <div className="p-6 flex flex-col gap-5">
+
+                                    {/* Resumen */}
+                                    <p className="text-sm text-light/60 leading-relaxed italic border-l-2 border-emerald-500/40 pl-3">
+                                        {profile.summary}
+                                    </p>
+
+                                    {/* Conceptos */}
                                     <div>
-                                        <div className="text-xs text-light/40 mb-2">Archivos analizados</div>
-                                        <div className="space-y-1.5">
-                                            {profile.analyzedFiles.map(f => (
-                                                <div key={f} className="text-xs text-light/40 flex items-center gap-1.5">
-                                                    <span>{FILE_ICONS[fileExt(f)] ?? '📄'}</span> {f}
-                                                </div>
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <span className="text-xs font-semibold text-light/50 uppercase tracking-wider">Conceptos detectados</span>
+                                            <span className="text-xs bg-emerald-900/40 border border-emerald-500/30 text-emerald-400 px-2 py-0.5 rounded-full font-bold">{profile.concepts.length}</span>
+                                        </div>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {profile.concepts.map(c => (
+                                                <span key={c} className="bg-[#0f0f0f] border border-emerald-500/20 text-emerald-300/80 text-xs px-2.5 py-1 rounded-lg">{c}</span>
                                             ))}
                                         </div>
                                     </div>
-                                )}
-                                <button onClick={handleClear} className="text-xs text-light/30 hover:text-red-400 transition-colors text-left">
-                                    Borrar perfil y empezar de cero
-                                </button>
+
+                                    {/* Archivos analizados */}
+                                    {profile.analyzedFiles.length > 0 && (
+                                        <div>
+                                            <div className="flex items-center gap-2 mb-3">
+                                                <span className="text-xs font-semibold text-light/50 uppercase tracking-wider">Archivos analizados</span>
+                                                <span className="text-xs bg-light/5 border border-light/10 text-light/40 px-2 py-0.5 rounded-full font-bold">{profile.analyzedFiles.length}</span>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-1.5 max-h-48 overflow-y-auto pr-1">
+                                                {profile.analyzedFiles.map(f => (
+                                                    <div key={f} className="flex items-center gap-1.5 bg-[#0f0f0f] rounded-lg px-2.5 py-1.5 min-w-0">
+                                                        <span className="text-xs flex-shrink-0">{FILE_ICONS[fileExt(f)] ?? '📄'}</span>
+                                                        <span className="text-xs text-light/40 truncate">{f.replace(/\.[^.]+$/, '')}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <button onClick={handleClear} className="text-xs text-light/20 hover:text-red-400 transition-colors text-left mt-1">
+                                        Borrar perfil y empezar de cero
+                                    </button>
+                                </div>
                             </div>
                         ) : (
                             <div className="bg-[#1a1a1a] border border-light/10 rounded-2xl p-10 text-center h-full flex flex-col items-center justify-center gap-4">
