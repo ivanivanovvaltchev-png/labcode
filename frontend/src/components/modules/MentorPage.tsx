@@ -68,6 +68,7 @@ const MentorPage: React.FC = () => {
     const [variantOrigin, setVariantOrigin] = useState<string | null>(null);
     const [manuallyCompleted, setManuallyCompleted] = useState(false);
     const [currentSkillContext, setCurrentSkillContext] = useState<string | null>(null);
+    const [exercisePanelOpen, setExercisePanelOpen] = useState(false);
     const [showCompletionPopup, setShowCompletionPopup] = useState(false);
     // Saved before URL params are cleared so the popup still has them at completion time
     const [savedTaskId, setSavedTaskId] = useState<string | null>(null);
@@ -144,7 +145,12 @@ const MentorPage: React.FC = () => {
         if (exerciseSubmitted && exercise) saveActiveSession(exercise, messages, currentSkillContext ?? undefined);
     }, [messages, exercise, exerciseSubmitted, currentSkillContext]);
 
-    const isCompleted = manuallyCompleted || messages.some(m => m.role === 'assistant' && m.content.includes(TAG));
+    const isCompleted = manuallyCompleted || messages.some(m =>
+        m.role === 'assistant' && (
+            m.content.includes(TAG) ||
+            m.content.includes('¡EJERCICIO COMPLETADO!')
+        )
+    );
 
     // Record session completion once when isCompleted first becomes true
     const completionRecordedRef = useRef(false);
@@ -227,7 +233,7 @@ const MentorPage: React.FC = () => {
         handleCreateVariant();
     };
 
-    const stripTag = (text: string) => text.replace(TAG, '').trim();
+    const stripTag = (text: string) => text.replace(TAG, '').replace('¡EJERCICIO COMPLETADO!', '').trim();
 
     const resumeSession = () => {
         if (!savedSession) return;
@@ -345,7 +351,7 @@ const MentorPage: React.FC = () => {
                 </div>
             )}
 
-            <div className="flex items-center gap-4 mb-4">
+            <div className="flex items-center gap-4 mb-3">
                 <button onClick={() => navigate('/')} className="text-light/40 hover:text-light transition-colors text-sm">
                     ← Volver
                 </button>
@@ -455,78 +461,84 @@ const MentorPage: React.FC = () => {
                 </div>
             )}
 
-            {/* Chat interface */}
+            {/* Chat interface — full width */}
             {exerciseSubmitted && !isGeneratingExercise && (
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5" style={{ height: 'calc(100vh - 180px)' }}>
-                    {/* Left panel */}
-                    <div className="lg:col-span-4 flex flex-col gap-3 min-h-0">
-                        <div className="bg-[#1a1a1a] border border-violet-500/20 rounded-2xl p-4 flex-1 overflow-y-auto">
-                            <div className="flex items-center justify-between mb-3">
-                                <span className="text-xs font-semibold text-violet-400 uppercase tracking-wider">
-                                    📋 Ejercicio{variantOrigin ? ' · variante' : ''}
-                                </span>
-                                <button onClick={handleNewExercise} className="text-xs text-light/30 hover:text-red-400 transition-colors">
-                                    Nuevo
-                                </button>
-                            </div>
-                            {exercise ? (
-                                <p className="text-sm text-light/70 leading-relaxed whitespace-pre-wrap font-mono">{exercise}</p>
-                            ) : (
-                                <div className="flex items-center gap-2 text-light/30 text-sm">
-                                    <LoadingDots /> <span>Generando…</span>
-                                </div>
-                            )}
-                        </div>
+                <div className="flex flex-col" style={{ height: 'calc(100vh - 110px)' }}>
 
-                        {completedSessions.length > 0 && (
-                            <div className="bg-[#1a1a1a] border border-light/10 rounded-2xl flex-shrink-0 overflow-hidden">
-                                <button
-                                    onClick={() => setHistoryOpen(h => !h)}
-                                    className="w-full flex items-center justify-between px-4 py-3 text-xs text-light/40 hover:text-light/60 transition-colors"
+                    {/* Exercise accordion */}
+                    <div className="flex-shrink-0 mb-3">
+                        <button
+                            onClick={() => setExercisePanelOpen(v => !v)}
+                            className="w-full bg-[#1a1a1a] border border-violet-500/20 rounded-2xl px-5 py-3 flex items-center gap-3 hover:bg-light/5 transition-colors text-left"
+                        >
+                            <span className="text-xs font-bold text-violet-400 uppercase tracking-wider flex-shrink-0">
+                                📋 Ejercicio{variantOrigin ? ' · variante' : ''}
+                            </span>
+                            {currentSkillContext && (
+                                <span className="text-sm text-light/50 flex-1 truncate">{currentSkillContext}</span>
+                            )}
+                            <div className="flex items-center gap-4 flex-shrink-0">
+                                <span
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={(e) => { e.stopPropagation(); handleNewExercise(); }}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); handleNewExercise(); } }}
+                                    className="text-xs text-light/30 hover:text-red-400 transition-colors cursor-pointer"
                                 >
-                                    <span>📚 Historial ({completedSessions.length})</span>
-                                    <span>{historyOpen ? '▲' : '▼'}</span>
-                                </button>
-                                {historyOpen && (
-                                    <div className="px-4 pb-3 space-y-2 max-h-48 overflow-y-auto">
-                                        {completedSessions.map(s => (
-                                            <div key={s.id} className="bg-[#0f0f0f] rounded-xl p-2.5">
-                                                <span className="text-xs text-emerald-400">✅ {formatDate(s.completedAt)}</span>
-                                                {s.isVariantOf && <span className="text-xs text-violet-400 ml-1">variante</span>}
-                                                <p className="text-xs text-light/40 font-mono line-clamp-1 mt-1">{s.exercise.slice(0, 80)}…</p>
-                                            </div>
-                                        ))}
+                                    Nuevo
+                                </span>
+                                <span className="text-xs text-light/40">{exercisePanelOpen ? '▲ Ocultar' : '▼ Ver enunciado'}</span>
+                            </div>
+                        </button>
+                        {exercisePanelOpen && (
+                            <div className="bg-[#1a1a1a] border border-violet-500/20 border-t-0 rounded-b-2xl px-5 pb-4">
+                                {exercise ? (
+                                    <p className="text-sm text-light/70 leading-relaxed whitespace-pre-wrap font-mono pt-3">{exercise}</p>
+                                ) : (
+                                    <div className="flex items-center gap-2 text-light/30 text-sm pt-3">
+                                        <LoadingDots /> <span>Generando…</span>
                                     </div>
                                 )}
                             </div>
                         )}
-
-                        <div className="bg-[#1a1a1a] border border-light/10 rounded-2xl p-4 flex-shrink-0">
-                            <div className="text-xs font-semibold text-light/30 uppercase tracking-wider mb-2">💡 Recuerda</div>
-                            <div className="space-y-1.5 text-xs text-light/35">
-                                <p>• El mentor NO te dará el código completo</p>
-                                <p>• Explica tu razonamiento en cada paso</p>
-                                <p>• Si te atascas, pide una pista específica</p>
-                            </div>
-                        </div>
                     </div>
 
-                    {/* Chat */}
-                    <div className="lg:col-span-8 flex flex-col bg-[#1a1a1a] border border-light/10 rounded-2xl overflow-hidden min-h-0">
+                    {/* Chat — full width */}
+                    <div className="flex-1 flex flex-col bg-[#1a1a1a] border border-light/10 rounded-2xl overflow-hidden min-h-0">
                         <div className="px-5 py-3 border-b border-light/10 flex items-center gap-3 flex-shrink-0">
                             <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-sm">🧠</div>
                             <div>
                                 <div className="text-sm font-bold text-light">Mentor IA</div>
-                                <div className="text-xs text-light/40">Te guía sin darte las respuestas</div>
+                                <div className="text-xs text-light/40">Te guía sin darte las respuestas directas</div>
                             </div>
                             {isCompleted && (
                                 <div className="ml-auto flex items-center gap-1.5 bg-emerald-900/30 border border-emerald-500/30 rounded-full px-3 py-1">
                                     <span className="text-xs text-emerald-400 font-semibold">✅ Completado</span>
                                 </div>
                             )}
+                            {completedSessions.length > 0 && (
+                                <button
+                                    onClick={() => setHistoryOpen(h => !h)}
+                                    className={`ml-auto text-xs text-light/30 hover:text-light/60 border border-light/10 px-3 py-1.5 rounded-lg transition-colors ${isCompleted ? '' : 'ml-auto'}`}
+                                >
+                                    📚 Historial ({completedSessions.length})
+                                </button>
+                            )}
                         </div>
 
-                        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                        {historyOpen && (
+                            <div className="px-4 py-3 border-b border-light/10 bg-[#0f0f0f] flex-shrink-0 max-h-40 overflow-y-auto space-y-2">
+                                {completedSessions.map(s => (
+                                    <div key={s.id} className="bg-[#1a1a1a] rounded-xl p-2.5">
+                                        <span className="text-xs text-emerald-400">✅ {formatDate(s.completedAt)}</span>
+                                        {s.isVariantOf && <span className="text-xs text-violet-400 ml-1">variante</span>}
+                                        <p className="text-xs text-light/40 font-mono line-clamp-1 mt-1">{s.exercise.slice(0, 100)}…</p>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        <div className="flex-1 overflow-y-auto p-5 space-y-4">
                             {(isLoading || isGeneratingExercise) && messages.length === 0 && (
                                 <div className="flex items-start gap-3">
                                     <div className="w-7 h-7 rounded-lg bg-violet-600/20 flex items-center justify-center text-xs flex-shrink-0">🧠</div>
@@ -541,7 +553,7 @@ const MentorPage: React.FC = () => {
                                     <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs flex-shrink-0 ${msg.role === 'user' ? 'bg-blue-600/20' : 'bg-violet-600/20'}`}>
                                         {msg.role === 'user' ? '👤' : '🧠'}
                                     </div>
-                                    <div className={`rounded-2xl px-4 py-3 max-w-[85%] text-sm leading-relaxed whitespace-pre-wrap ${msg.role === 'user' ? 'bg-blue-600/20 border border-blue-500/20 rounded-tr-none text-light' : 'bg-[#0f0f0f] border border-light/10 rounded-tl-none text-light/80'}`}>
+                                    <div className={`rounded-2xl px-4 py-3 max-w-[80%] text-sm leading-relaxed whitespace-pre-wrap ${msg.role === 'user' ? 'bg-blue-600/20 border border-blue-500/20 rounded-tr-none text-light' : 'bg-[#0f0f0f] border border-light/10 rounded-tl-none text-light/80'}`}>
                                         {stripTag(msg.content)}
                                     </div>
                                 </div>

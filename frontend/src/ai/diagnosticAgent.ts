@@ -86,7 +86,7 @@ Contexto realista, instrucciones claras, nivel adecuado para alguien que está a
     return deepSeekRaw(systemPrompt, userPrompt);
 }
 
-async function deepSeekJSON<T>(systemPrompt: string, userPrompt: string): Promise<T> {
+async function deepSeekJSON<T>(systemPrompt: string, userPrompt: string, temperature = 0.3): Promise<T> {
     const apiKey = import.meta.env.VITE_DEEPSEEK_API_KEY;
     if (!apiKey) throw new Error('No API Key');
 
@@ -99,7 +99,7 @@ async function deepSeekJSON<T>(systemPrompt: string, userPrompt: string): Promis
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: userPrompt },
             ],
-            temperature: 0.3,
+            temperature,
             max_tokens: 2000,
         }),
     });
@@ -402,14 +402,15 @@ REGLAS:
 - Las opciones incorrectas deben ser errores comunes plausibles, no tonterías obvias.
 - PROHIBIDO ABSOLUTO: def, return, funciones, SQL, diccionarios, tuplas, clases, Git, pseudocódigo, .split(), excepciones, ORM.`;
 
-    const userPrompt = `Genera las 3 preguntas siguiendo exactamente la estructura del system prompt. Una por slot. Devuelve solo el JSON.`;
+    const today = new Date().toISOString().split('T')[0];
+    const userPrompt = `Fecha de hoy: ${today}. Usa escenarios, valores y contextos COMPLETAMENTE DISTINTOS a los de días anteriores. Varía los números, las listas de ejemplo y el dominio (puede ser: temperaturas, notas de clase, precios, edades, puntuaciones, colores, frutas, etc.). Genera las 3 preguntas siguiendo exactamente la estructura del system prompt. Una por slot. Devuelve solo el JSON.`;
 
     // Filter + retry — up to 3 attempts. Source of truth for forbidden terms: studentProfile.ts
     const MAX_ATTEMPTS = 3;
     let clean: TestQuestion[] = [];
 
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-        const raw = await deepSeekJSON<TestQuestion[]>(systemPrompt, userPrompt);
+        const raw = await deepSeekJSON<TestQuestion[]>(systemPrompt, userPrompt, 0.85);
         clean = raw.filter(questionPassesGuard).slice(0, 3);
         if (clean.length >= TEST_SLOTS.length) break;
     }
