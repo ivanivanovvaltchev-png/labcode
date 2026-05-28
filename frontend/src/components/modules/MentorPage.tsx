@@ -16,10 +16,22 @@ interface MentorSession {
     messages: ChatMessage[];
     savedAt: number;
     skillContext?: string;
+    taskId?: string;
+    taskIndex?: number;
+    totalTasks?: number;
 }
 
-function saveActiveSession(exercise: string, messages: ChatMessage[], skillContext?: string) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ exercise, messages, savedAt: Date.now(), skillContext }));
+function saveActiveSession(
+    exercise: string,
+    messages: ChatMessage[],
+    skillContext?: string,
+    taskId?: string,
+    taskIndex?: number,
+    totalTasks?: number,
+) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        exercise, messages, savedAt: Date.now(), skillContext, taskId, taskIndex, totalTasks,
+    }));
 }
 
 function loadActiveSession(): MentorSession | null {
@@ -27,6 +39,12 @@ function loadActiveSession(): MentorSession | null {
         const raw = localStorage.getItem(STORAGE_KEY);
         return raw ? JSON.parse(raw) : null;
     } catch { return null; }
+}
+
+/** Returns the taskId of any active (non-completed) mentor session, or null. */
+export function getActiveMentorTaskId(): string | null {
+    const s = loadActiveSession();
+    return s?.taskId ?? null;
 }
 
 function clearActiveSession() {
@@ -46,11 +64,12 @@ const MentorPage: React.FC = () => {
     const [searchParams, setSearchParams] = useSearchParams();
 
     // URL params from PathDashboard "Empezar ejercicio"
-    const paramTaskTitle  = searchParams.get('taskTitle');
-    const paramSkillRef   = searchParams.get('skillRef');
-    const paramTaskId     = searchParams.get('taskId');
-    const paramTaskIndex  = searchParams.get('taskIndex');
-    const paramTotalTasks = searchParams.get('totalTasks');
+    const paramTaskTitle      = searchParams.get('taskTitle');
+    const paramSkillRef       = searchParams.get('skillRef');
+    const paramTaskId         = searchParams.get('taskId');
+    const paramTaskIndex      = searchParams.get('taskIndex');
+    const paramTotalTasks     = searchParams.get('totalTasks');
+    const paramResumeTaskId   = searchParams.get('resumeTaskId');   // restore existing session
     const hasSkillContext = !!(paramTaskTitle || paramSkillRef);
     const taskIndex   = paramTaskIndex  !== null ? parseInt(paramTaskIndex)  : null;
     const totalTasks  = paramTotalTasks !== null ? parseInt(paramTotalTasks) : null;
@@ -97,13 +116,25 @@ const MentorPage: React.FC = () => {
         const session = loadActiveSession();
         setCompletedSessions(loadCompletedSessions());
 
-        if (hasSkillContext) {
-            // Coming from a skill/task button — save params to state BEFORE clearing URL
+        if (paramResumeTaskId && session?.taskId === paramResumeTaskId && session.messages.length > 0) {
+            // ── RESTORE mode: resume the saved session for this task card ──
+            setExercise(session.exercise);
+            setMessages(session.messages);
+            setCurrentSkillContext(session.skillContext ?? null);
+            setIsFromTaskCard(true);
+            setSavedTaskId(session.taskId ?? null);
+            setSavedTaskIndex(session.taskIndex ?? null);
+            setSavedTotalTasks(session.totalTasks ?? null);
+            setExerciseSubmitted(true);
+            setSearchParams({}, { replace: true });
+
+        } else if (hasSkillContext) {
+            // ── NEW exercise: coming from a skill/task button ──
             const skillLabel = paramTaskTitle ?? paramSkillRef ?? '';
             setCurrentSkillContext(skillLabel);
             setIsFromTaskCard(true);
-            if (paramTaskId)     setSavedTaskId(paramTaskId);
-            if (taskIndex !== null)  setSavedTaskIndex(taskIndex);
+            if (paramTaskId)        setSavedTaskId(paramTaskId);
+            if (taskIndex !== null) setSavedTaskIndex(taskIndex);
             if (totalTasks !== null) setSavedTotalTasks(totalTasks);
 
             setIsGeneratingExercise(true);
@@ -124,12 +155,12 @@ const MentorPage: React.FC = () => {
                 const resp = await callDeepSeekForMentor(generatedExercise, [], 'init', getKnowledgeBlock());
                 setMessages([{ role: 'assistant', content: resp }]);
                 setIsLoading(false);
-                // Clear URL params so refresh doesn't re-generate
                 setSearchParams({}, { replace: true });
             }).catch(() => {
                 setIsGeneratingExercise(false);
                 setExerciseSubmitted(false);
             });
+
         } else if (session?.messages.length) {
             setSavedSession(session);
             setCurrentSkillContext(session.skillContext ?? null);
@@ -142,8 +173,16 @@ const MentorPage: React.FC = () => {
     }, [messages, isLoading]);
 
     useEffect(() => {
-        if (exerciseSubmitted && exercise) saveActiveSession(exercise, messages, currentSkillContext ?? undefined);
-    }, [messages, exercise, exerciseSubmitted, currentSkillContext]);
+        if (exerciseSubmitted && exercise) {
+            saveActiveSession(
+                exercise, messages,
+                currentSkillContext ?? undefined,
+                savedTaskId ?? undefined,
+                savedTaskIndex ?? undefined,
+                savedTotalTasks ?? undefined,
+            );
+        }
+    }, [messages, exercise, exerciseSubmitted, currentSkillContext, savedTaskId, savedTaskIndex, savedTotalTasks]);
 
     const isCompleted = manuallyCompleted || messages.some(m =>
         m.role === 'assistant' && (

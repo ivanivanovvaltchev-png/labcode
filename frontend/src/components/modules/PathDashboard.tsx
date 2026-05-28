@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getPathById, isSkillMastered, calculateProgress, getAvailableSkills } from '../../data/careerPaths';
 import { loadSelectedPath, loadSelfAssessments, saveSelfAssessments } from '../../lib/selectedPath';
@@ -6,6 +6,7 @@ import { loadKnowledgeProfile } from '../../lib/knowledgeProfile';
 import { isOnboardingComplete, getDiagnosticResult, getDailyPlan, completeTask, todayString, saveDailyPlan, saveMasterFeedback } from '../../lib/userProgress';
 import { generateDailyPlan, generateMasterFeedback } from '../../ai/diagnosticAgent';
 import { recordPractice, getHabilidadesValidadas } from '../../lib/learningMetrics';
+import { getActiveMentorTaskId } from './MentorPage';
 import { getTodayTest } from '../../lib/dailyTest';
 
 const taskTypeIcon: Record<string, string> = { learn: '📖', practice: '💻', review: '🔄' };
@@ -131,6 +132,11 @@ const PathDashboard: React.FC = () => {
     };
 
     const goToMentor = (taskTitle: string, taskDesc: string, skillRef: string, taskId?: string, taskIndex?: number) => {
+        // If there's an active session for this exact task → restore it
+        if (taskId && getActiveMentorTaskId() === taskId) {
+            navigate(`/mentor?resumeTaskId=${taskId}`);
+            return;
+        }
         const params = new URLSearchParams({ taskTitle, taskDesc, skillRef });
         if (taskId) params.set('taskId', taskId);
         if (taskIndex !== undefined) params.set('taskIndex', String(taskIndex));
@@ -141,6 +147,8 @@ const PathDashboard: React.FC = () => {
     const completedCount = dailyPlan?.tasks.filter(t => t.completed).length ?? 0;
     const totalTasks = dailyPlan?.tasks.length ?? 0;
     const allTasksDone = totalTasks > 0 && completedCount === totalTasks;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const activeMentorTaskId = useMemo(() => getActiveMentorTaskId(), [dailyPlan]);
 
     return (
         <div className="max-w-6xl mx-auto px-6 sm:px-10 lg:px-16 py-10 space-y-6">
@@ -297,15 +305,24 @@ const PathDashboard: React.FC = () => {
                 {/* Plan cards */}
                 {dailyPlan && !isGeneratingPlan && (
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-                        {dailyPlan.tasks.map((task, idx) => (
+                        {dailyPlan.tasks.map((task, idx) => {
+                            const hasActiveSession = activeMentorTaskId === task.id && !task.completed;
+                            return (
                             <div
                                 key={task.id}
                                 className={`relative border rounded-2xl p-6 flex flex-col gap-4 transition-all ${task.completed ? 'opacity-40 border-light/10 bg-light/5' : taskTypeColor[task.type]}`}
                             >
                                 <div className="flex items-center justify-between">
-                                    <span className={`text-sm font-bold px-3 py-1 rounded-full ${taskTypeBadge[task.type]}`}>
-                                        {taskTypeIcon[task.type]} {taskTypeName[task.type]}
-                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        <span className={`text-sm font-bold px-3 py-1 rounded-full ${taskTypeBadge[task.type]}`}>
+                                            {taskTypeIcon[task.type]} {taskTypeName[task.type]}
+                                        </span>
+                                        {hasActiveSession && (
+                                            <span className="text-xs bg-violet-900/40 border border-violet-500/40 text-violet-300 px-2 py-0.5 rounded-full animate-pulse">
+                                                ● En progreso
+                                            </span>
+                                        )}
+                                    </div>
                                     <span className="text-sm text-light/20 font-mono">#{idx + 1}</span>
                                 </div>
 
@@ -321,9 +338,9 @@ const PathDashboard: React.FC = () => {
                                         <>
                                             <button
                                                 onClick={() => goToMentor(task.title, task.description, task.skillRef, task.id, idx)}
-                                                className="w-full bg-violet-600 hover:bg-violet-500 text-white font-bold py-3 rounded-xl text-sm transition-all"
+                                                className={`w-full text-white font-bold py-3 rounded-xl text-sm transition-all ${hasActiveSession ? 'bg-violet-700 hover:bg-violet-600 ring-1 ring-violet-400/50' : 'bg-violet-600 hover:bg-violet-500'}`}
                                             >
-                                                Empezar ejercicio →
+                                                {hasActiveSession ? '↩ Continuar ejercicio' : 'Empezar ejercicio →'}
                                             </button>
                                             <button
                                                 onClick={() => handleCompleteTask(task.id)}
@@ -335,7 +352,8 @@ const PathDashboard: React.FC = () => {
                                     )}
                                 </div>
                             </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
             </div>
