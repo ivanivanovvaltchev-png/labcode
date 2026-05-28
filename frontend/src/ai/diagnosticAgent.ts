@@ -43,16 +43,27 @@ export interface DailyTaskRaw {
 async function deepSeekRaw(systemPrompt: string, userPrompt: string): Promise<string> {
     const apiKey = import.meta.env.VITE_DEEPSEEK_API_KEY;
     if (!apiKey) throw new Error('No API Key');
-    const response = await fetch(DEEPSEEK_API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-        body: JSON.stringify({
-            model: 'deepseek-chat',
-            messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
-            temperature: 0.6,
-            max_tokens: 600,
-        }),
-    });
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 45_000);
+
+    let response: Response;
+    try {
+        response = await fetch(DEEPSEEK_API_URL, {
+            method: 'POST',
+            signal: controller.signal,
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+            body: JSON.stringify({
+                model: 'deepseek-chat',
+                messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
+                temperature: 0.6,
+                max_tokens: 600,
+            }),
+        });
+    } finally {
+        clearTimeout(timeout);
+    }
+
     if (!response.ok) throw new Error(await response.text());
     const data = await response.json();
     return (data.choices?.[0]?.message?.content ?? '').trim();
@@ -90,19 +101,28 @@ async function deepSeekJSON<T>(systemPrompt: string, userPrompt: string, tempera
     const apiKey = import.meta.env.VITE_DEEPSEEK_API_KEY;
     if (!apiKey) throw new Error('No API Key');
 
-    const response = await fetch(DEEPSEEK_API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-        body: JSON.stringify({
-            model: 'deepseek-chat',
-            messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: userPrompt },
-            ],
-            temperature,
-            max_tokens: 2000,
-        }),
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 45_000);
+
+    let response: Response;
+    try {
+        response = await fetch(DEEPSEEK_API_URL, {
+            method: 'POST',
+            signal: controller.signal,
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+            body: JSON.stringify({
+                model: 'deepseek-chat',
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: userPrompt },
+                ],
+                temperature,
+                max_tokens: 2000,
+            }),
+        });
+    } finally {
+        clearTimeout(timeout);
+    }
 
     if (!response.ok) throw new Error(await response.text());
     const data = await response.json();

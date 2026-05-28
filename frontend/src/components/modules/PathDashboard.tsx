@@ -86,19 +86,24 @@ const PathDashboard: React.FC = () => {
     const handleGeneratePlan = async () => {
         if (!pathId || !path) return;
         setIsGeneratingPlan(true);
-        const profile = loadKnowledgeProfile();
-        const concepts = profile?.concepts ?? [];
-        const available = getAvailableSkills(path, concepts, assessments);
-        const habilidades = getHabilidadesValidadas(path, concepts, assessments);
-        const tasks = await generateDailyPlan(path, diagResult?.weakAreas ?? [], concepts, available, habilidades);
-        const plan = {
-            date: todayString(),
-            tasks: tasks.map((t, i) => ({ ...t, id: `task-${Date.now()}-${i}`, completed: false })),
-            generatedAt: Date.now(),
-        };
-        saveDailyPlan(pathId, plan);
-        setDailyPlan(plan);
-        setIsGeneratingPlan(false);
+        try {
+            const profile = loadKnowledgeProfile();
+            const concepts = profile?.concepts ?? [];
+            const available = getAvailableSkills(path, concepts, assessments);
+            const habilidades = getHabilidadesValidadas(path, concepts, assessments);
+            const tasks = await generateDailyPlan(path, diagResult?.weakAreas ?? [], concepts, available, habilidades);
+            const plan = {
+                date: todayString(),
+                tasks: tasks.map((t, i) => ({ ...t, id: `task-${Date.now()}-${i}`, completed: false })),
+                generatedAt: Date.now(),
+            };
+            saveDailyPlan(pathId, plan);
+            setDailyPlan(plan);
+        } catch (err) {
+            console.error('Error generando plan:', err);
+        } finally {
+            setIsGeneratingPlan(false);
+        }
     };
 
     const handleCompleteTask = (taskId: string) => {

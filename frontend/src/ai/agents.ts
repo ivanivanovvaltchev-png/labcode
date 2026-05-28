@@ -45,23 +45,31 @@ async function makeDeepSeekRequest(systemRole: string, userMessage: string, temp
     }
 
     try {
-        const response = await fetch(DEEPSEEK_API_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`
-            },
-            body: JSON.stringify({
-                model: 'deepseek-chat',
-                messages: [
-                    { role: 'system', content: systemRole },
-                    { role: 'user', content: userMessage }
-                ],
-                temperature: temperature,
-                presence_penalty: 0.6,
-                max_tokens: 1500
-            })
-        });
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 45_000);
+        let response: Response;
+        try {
+            response = await fetch(DEEPSEEK_API_URL, {
+                method: 'POST',
+                signal: controller.signal,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: 'deepseek-chat',
+                    messages: [
+                        { role: 'system', content: systemRole },
+                        { role: 'user', content: userMessage }
+                    ],
+                    temperature: temperature,
+                    presence_penalty: 0.6,
+                    max_tokens: 1500
+                })
+            });
+        } finally {
+            clearTimeout(timeout);
+        }
 
         if (!response.ok) {
             const err = await response.text();
