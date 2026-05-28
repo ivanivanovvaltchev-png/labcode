@@ -38,7 +38,52 @@ export async function pullFromCloud(userId: string): Promise<void> {
 
     if (error || !data) return;
 
-    if (data.progress != null) localStorage.setItem(KEYS.progress, JSON.stringify(data.progress));
+    if (data.progress != null) {
+        // Merge strategy: never let a stale cloud overwrite a more-complete local state.
+        const localRaw = localStorage.getItem(KEYS.progress);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const cloud = data.progress as any;
+        if (localRaw) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const local = JSON.parse(localRaw) as any;
+
+            // Merge dailyPlans: keep whichever plan has more completed tasks
+            const allPathIds = new Set([
+                ...Object.keys(local.dailyPlans ?? {}),
+                ...Object.keys(cloud.dailyPlans ?? {}),
+            ]);
+            const mergedPlans: Record<string, unknown> = { ...(cloud.dailyPlans ?? {}) };
+            for (const pid of allPathIds) {
+                const lp = (local.dailyPlans ?? {})[pid];
+                const cp = (cloud.dailyPlans ?? {})[pid];
+                if (lp && !cp) {
+                    mergedPlans[pid] = lp; // cloud doesn't have it → keep local
+                } else if (lp && cp) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const localDone = (lp.tasks ?? []).filter((t: any) => t.completed).length;
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const cloudDone = (cp.tasks ?? []).filter((t: any) => t.completed).length;
+                    mergedPlans[pid] = localDone >= cloudDone ? lp : cp;
+                }
+            }
+            cloud.dailyPlans = mergedPlans;
+
+            // XP can only grow — never reduce it
+            cloud.xp = Math.max(local.xp ?? 0, cloud.xp ?? 0);
+
+            // Merge activity log (union by timestamp)
+            const localLog: unknown[] = local.activityLog ?? [];
+            const cloudLog: unknown[] = cloud.activityLog ?? [];
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const logByTs = new Map<number, unknown>([...cloudLog, ...localLog].map((e: any) => [e.timestamp, e]));
+            cloud.activityLog = Array.from(logByTs.values())
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                .sort((a: any, b: any) => b.timestamp - a.timestamp)
+                .slice(0, 100);
+        }
+        localStorage.setItem(KEYS.progress, JSON.stringify(cloud));
+    }
+
     if (data.selected_path) localStorage.setItem(KEYS.selectedPath, data.selected_path as string);
     if (data.knowledge_profile != null) localStorage.setItem(KEYS.knowledgeProfile, JSON.stringify(data.knowledge_profile));
     if (data.completed_sessions != null) localStorage.setItem(KEYS.completedSessions, JSON.stringify(data.completed_sessions));

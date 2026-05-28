@@ -43,7 +43,7 @@ function App() {
     // Push to cloud periodically and on unload
     const startSyncInterval = (userId: string) => {
         if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
-        syncIntervalRef.current = setInterval(() => pushToCloud(userId), 60_000);
+        syncIntervalRef.current = setInterval(() => pushToCloud(userId), 10_000);
 
         const onUnload = () => pushToCloud(userId);
         window.addEventListener('beforeunload', onUnload);
@@ -78,11 +78,20 @@ function App() {
         // Refresh XP (same-tab localStorage updates)
         const onStorage = () => setXp(getTotalXP());
         window.addEventListener('storage', onStorage);
+
+        // Immediate cloud push when progress is saved (plan generated, task completed, etc.)
+        const onProgressSaved = () => {
+            supabase.auth.getSession().then(({ data: { session: cur } }) => {
+                if (cur) pushToCloud(cur.user.id);
+            });
+        };
+        window.addEventListener('labcode:progress_saved', onProgressSaved);
         const xpInterval = setInterval(() => setXp(getTotalXP()), 3000);
 
         return () => {
             subscription.unsubscribe();
             window.removeEventListener('storage', onStorage);
+            window.removeEventListener('labcode:progress_saved', onProgressSaved);
             clearInterval(xpInterval);
             if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
             cleanupUnload?.();

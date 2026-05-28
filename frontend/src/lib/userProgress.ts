@@ -57,6 +57,8 @@ function load(): UserProgress {
 
 function save(p: UserProgress): void {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(p));
+    // Signal App.tsx to push to cloud immediately
+    window.dispatchEvent(new Event('labcode:progress_saved'));
 }
 
 export function getTotalXP(): number { return load().xp; }
