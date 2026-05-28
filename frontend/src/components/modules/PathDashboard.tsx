@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { getPathById, isSkillMastered, calculateProgress, getAvailableSkills } from '../../data/careerPaths';
 import { loadSelectedPath, loadSelfAssessments, saveSelfAssessments } from '../../lib/selectedPath';
 import { loadKnowledgeProfile } from '../../lib/knowledgeProfile';
@@ -29,6 +29,8 @@ const pathColors: Record<string, { text: string; bar: string; border: string }> 
 
 const PathDashboard: React.FC = () => {
     const navigate = useNavigate();
+    const location = useLocation();
+    const autoStartHandled = useRef(false);
     const [assessments, setAssessments] = useState<Record<string, boolean>>({});
     const [profileConcepts, setProfileConcepts] = useState<string[]>([]);
     const [dailyPlan, setDailyPlan] = useState<ReturnType<typeof getDailyPlan>>(null);
@@ -54,6 +56,30 @@ const PathDashboard: React.FC = () => {
             }
         }
     }, [pathId]);
+
+    // Auto-launch next task when arriving from handleNextTask popup
+    useEffect(() => {
+        if (autoStartHandled.current) return;
+        const autoTaskId = (location.state as { autoStartTaskId?: string } | null)?.autoStartTaskId;
+        if (!autoTaskId || !dailyPlan) return;
+
+        const task = dailyPlan.tasks.find(t => t.id === autoTaskId && !t.completed);
+        if (!task) return;
+
+        autoStartHandled.current = true;
+        const idx = dailyPlan.tasks.indexOf(task);
+        const params = new URLSearchParams({
+            taskTitle: task.title,
+            taskDesc: task.description,
+            skillRef: task.skillRef,
+            taskId: task.id,
+            taskIndex: String(idx),
+            totalTasks: String(dailyPlan.tasks.length),
+        });
+        // Replace history so back-button doesn't loop
+        navigate(`/mentor?${params.toString()}`, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [dailyPlan]);
 
     // Generate master feedback once when all tasks are done and none exists yet
     useEffect(() => {
