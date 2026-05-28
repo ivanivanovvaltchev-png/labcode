@@ -27,13 +27,24 @@ const pathColors: Record<string, { text: string; bar: string; border: string }> 
     'fullstack-dev': { text: 'text-violet-400', bar: 'bg-violet-400', border: 'border-violet-500/30' },
 };
 
+function loadPlanForPath(pathId: string | null): ReturnType<typeof getDailyPlan> {
+    if (!pathId) return null;
+    const existing = getDailyPlan(pathId);
+    if (!existing) return null;
+    const hasIncomplete = existing.tasks.some(t => !t.completed);
+    return (hasIncomplete || existing.date === todayString()) ? existing : null;
+}
+
 const PathDashboard: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const autoStartHandled = useRef(false);
     const [assessments, setAssessments] = useState<Record<string, boolean>>({});
     const [profileConcepts, setProfileConcepts] = useState<string[]>([]);
-    const [dailyPlan, setDailyPlan] = useState<ReturnType<typeof getDailyPlan>>(null);
+    // Lazy initializer: reads localStorage synchronously on first render — no empty-state flash
+    const [dailyPlan, setDailyPlan] = useState<ReturnType<typeof getDailyPlan>>(
+        () => loadPlanForPath(loadSelectedPath())
+    );
     const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
     const [planError, setPlanError] = useState<string | null>(null);
     const [isGeneratingFeedback, setIsGeneratingFeedback] = useState(false);
@@ -47,14 +58,8 @@ const PathDashboard: React.FC = () => {
         setAssessments(loadSelfAssessments(pathId));
         const profile = loadKnowledgeProfile();
         setProfileConcepts(profile?.concepts ?? []);
-        const existing = getDailyPlan(pathId);
-        if (existing) {
-            const hasIncomplete = existing.tasks.some(t => !t.completed);
-            // Load plan if: tasks are still pending (regardless of date) OR it's from today
-            if (hasIncomplete || existing.date === todayString()) {
-                setDailyPlan(existing);
-            }
-        }
+        // Refresh plan (handles path switches or external updates)
+        setDailyPlan(loadPlanForPath(pathId));
     }, [pathId]);
 
     // Auto-launch next task when arriving from handleNextTask popup
