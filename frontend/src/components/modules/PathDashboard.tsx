@@ -45,7 +45,13 @@ const PathDashboard: React.FC = () => {
         const profile = loadKnowledgeProfile();
         setProfileConcepts(profile?.concepts ?? []);
         const existing = getDailyPlan(pathId);
-        if (existing && existing.date === todayString()) setDailyPlan(existing);
+        if (existing) {
+            const hasIncomplete = existing.tasks.some(t => !t.completed);
+            // Load plan if: tasks are still pending (regardless of date) OR it's from today
+            if (hasIncomplete || existing.date === todayString()) {
+                setDailyPlan(existing);
+            }
+        }
     }, [pathId]);
 
     // Generate master feedback once when all tasks are done and none exists yet
@@ -86,6 +92,9 @@ const PathDashboard: React.FC = () => {
 
     const handleGeneratePlan = async () => {
         if (!pathId || !path) return;
+        // Never overwrite a plan with pending tasks — guard against accidental calls
+        const current = getDailyPlan(pathId);
+        if (current && current.tasks.some(t => !t.completed)) return;
         setIsGeneratingPlan(true);
         try {
             const profile = loadKnowledgeProfile();
@@ -196,7 +205,14 @@ const PathDashboard: React.FC = () => {
             <div className="bg-[#1a1a1a] border border-light/10 rounded-2xl px-7 py-7">
                 <div className="flex items-center justify-between mb-6">
                     <div>
-                        <h2 className="text-xl font-bold text-light">Tu entrenamiento de hoy</h2>
+                        <div className="flex items-center gap-3">
+                            <h2 className="text-xl font-bold text-light">Tu entrenamiento de hoy</h2>
+                            {dailyPlan && dailyPlan.date !== todayString() && !allTasksDone && (
+                                <span className="text-xs bg-amber-900/30 border border-amber-500/30 text-amber-400 px-2 py-0.5 rounded-full">
+                                    ⏳ Continúa — sesión anterior
+                                </span>
+                            )}
+                        </div>
                         {diagResult && (
                             <p className="text-sm text-light/30 mt-1">
                                 Basado en tu diagnóstico ({diagResult.score}/100)
