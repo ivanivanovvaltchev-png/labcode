@@ -44,26 +44,29 @@ async function deepSeekRaw(systemPrompt: string, userPrompt: string): Promise<st
     const apiKey = import.meta.env.VITE_DEEPSEEK_API_KEY;
     if (!apiKey) throw new Error('No API Key');
 
-    const response = await Promise.race([
-        fetch(DEEPSEEK_API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-            body: JSON.stringify({
-                model: 'deepseek-chat',
-                messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
-                temperature: 0.6,
-                max_tokens: 600,
-            }),
-        }),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout: la API tardó demasiado')), 30_000)),
-    ]);
+    const body = {
+        model: 'deepseek-chat',
+        messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
+        temperature: 0.6,
+        max_tokens: 600,
+    };
 
-    if (!response.ok) {
-        const body = await response.text().catch(() => '');
-        throw new Error(`API ${response.status}: ${body.slice(0, 200)}`);
+    let lastError = '';
+    for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt++) {
+        const response = await fetchDeepSeek(body, apiKey);
+        if (response.ok) {
+            const data = await response.json();
+            return (data.choices?.[0]?.message?.content ?? '').trim();
+        }
+        const bodyText = await response.text().catch(() => '');
+        lastError = `API ${response.status}: ${bodyText.slice(0, 200)}`;
+        if ((response.status === 503 || response.status === 429) && attempt < RETRY_DELAYS.length) {
+            await new Promise(r => setTimeout(r, RETRY_DELAYS[attempt]));
+            continue;
+        }
+        throw new Error(lastError);
     }
-    const data = await response.json();
-    return (data.choices?.[0]?.message?.content ?? '').trim();
+    throw new Error(lastError);
 }
 
 export async function generateSkillExercise(
@@ -94,42 +97,59 @@ Contexto realista, instrucciones claras, nivel adecuado para alguien que está a
     return deepSeekRaw(systemPrompt, userPrompt);
 }
 
+const RETRY_DELAYS = [3000, 6000, 12000]; // ms between retries for 503/429
+
+async function fetchDeepSeek(body: object, apiKey: string): Promise<Response> {
+    return Promise.race([
+        fetch(DEEPSEEK_API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+            body: JSON.stringify(body),
+        }),
+        new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Timeout: DeepSeek no respondió en 30 s')), 30_000)
+        ),
+    ]);
+}
+
 async function deepSeekJSON<T>(systemPrompt: string, userPrompt: string, temperature = 0.3): Promise<T> {
     const apiKey = import.meta.env.VITE_DEEPSEEK_API_KEY;
     if (!apiKey) throw new Error('No API Key');
 
-    const response = await Promise.race([
-        fetch(DEEPSEEK_API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-            body: JSON.stringify({
-                model: 'deepseek-chat',
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    { role: 'user', content: userPrompt },
-                ],
-                temperature,
-                max_tokens: 2000,
-            }),
-        }),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout: la API tardó demasiado')), 30_000)),
-    ]);
+    const body = {
+        model: 'deepseek-chat',
+        messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+        ],
+        temperature,
+        max_tokens: 2000,
+    };
 
-    if (!response.ok) {
-        const body = await response.text().catch(() => '');
-        throw new Error(`API ${response.status}: ${body.slice(0, 200)}`);
+    let lastError = '';
+    for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt++) {
+        const response = await fetchDeepSeek(body, apiKey);
+        if (response.ok) {
+            const data = await response.json();
+            const raw = data.choices?.[0]?.message?.content ?? '{}';
+            const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+            try { return JSON.parse(cleaned) as T; }
+            catch {
+                const match = cleaned.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
+                if (match) return JSON.parse(match[0]) as T;
+                throw new Error('Respuesta de IA no parseable como JSON');
+            }
+        }
+        const bodyText = await response.text().catch(() => '');
+        lastError = `API ${response.status}: ${bodyText.slice(0, 200)}`;
+        // Retry only on transient server errors
+        if ((response.status === 503 || response.status === 429) && attempt < RETRY_DELAYS.length) {
+            await new Promise(r => setTimeout(r, RETRY_DELAYS[attempt]));
+            continue;
+        }
+        throw new Error(lastError);
     }
-    const data = await response.json();
-    const raw = data.choices?.[0]?.message?.content ?? '{}';
-
-    // Strip markdown code blocks if present
-    const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    try { return JSON.parse(cleaned) as T; }
-    catch {
-        const match = cleaned.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
-        if (match) return JSON.parse(match[0]) as T;
-        throw new Error('Respuesta de IA no parseable');
-    }
+    throw new Error(lastError);
 }
 
 // Hard guard for diagnostic questions — same pattern as questionPassesGuard for MCQ tests.

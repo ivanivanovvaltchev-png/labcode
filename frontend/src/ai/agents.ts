@@ -45,34 +45,41 @@ async function makeDeepSeekRequest(systemRole: string, userMessage: string, temp
     }
 
     try {
-        const response = await Promise.race([
-            fetch(DEEPSEEK_API_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`
-                },
-                body: JSON.stringify({
-                    model: 'deepseek-chat',
-                    messages: [
-                        { role: 'system', content: systemRole },
-                        { role: 'user', content: userMessage }
-                    ],
-                    temperature: temperature,
-                    presence_penalty: 0.6,
-                    max_tokens: 1500
-                })
-            }),
-            new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout: la API tardó demasiado')), 30_000)),
-        ]);
+        const retryDelays = [3000, 6000, 12000];
+        const reqBody = JSON.stringify({
+            model: 'deepseek-chat',
+            messages: [
+                { role: 'system', content: systemRole },
+                { role: 'user', content: userMessage }
+            ],
+            temperature: temperature,
+            presence_penalty: 0.6,
+            max_tokens: 1500
+        });
 
-        if (!response.ok) {
-            const err = await response.text().catch(() => '');
-            throw new Error(`API ${response.status}: ${err.slice(0, 200)}`);
+        let lastErr = '';
+        for (let attempt = 0; attempt <= retryDelays.length; attempt++) {
+            const response = await Promise.race([
+                fetch(DEEPSEEK_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+                    body: reqBody,
+                }),
+                new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout: DeepSeek no respondió en 30 s')), 30_000)),
+            ]);
+            if (response.ok) {
+                const data = await response.json();
+                return data.choices?.[0]?.message?.content || 'No se pudo generar una respuesta.';
+            }
+            const errText = await response.text().catch(() => '');
+            lastErr = `API ${response.status}: ${errText.slice(0, 200)}`;
+            if ((response.status === 503 || response.status === 429) && attempt < retryDelays.length) {
+                await new Promise(r => setTimeout(r, retryDelays[attempt]));
+                continue;
+            }
+            throw new Error(lastErr);
         }
-
-        const data = await response.json();
-        return data.choices?.[0]?.message?.content || "No se pudo generar una respuesta.";
+        throw new Error(lastErr);
     } catch (error) {
         console.error("DeepSeek API Error:", error);
         return `❌ Hubo un error al comunicar con la IA de DeepSeek: ${error instanceof Error ? error.message : "Error desconocido"}`;
