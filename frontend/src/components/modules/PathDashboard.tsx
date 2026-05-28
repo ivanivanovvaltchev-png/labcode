@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { getPathById, isSkillMastered, calculateProgress, getAvailableSkills } from '../../data/careerPaths';
 import { loadSelectedPath, loadSelfAssessments, saveSelfAssessments } from '../../lib/selectedPath';
 import { loadKnowledgeProfile } from '../../lib/knowledgeProfile';
@@ -38,7 +38,6 @@ function loadPlanForPath(pathId: string | null): ReturnType<typeof getDailyPlan>
 const PathDashboard: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const autoStartHandled = useRef(false);
     const [assessments, setAssessments] = useState<Record<string, boolean>>({});
     const [profileConcepts, setProfileConcepts] = useState<string[]>([]);
     // Lazy initializer: reads localStorage synchronously on first render — no empty-state flash
@@ -61,30 +60,6 @@ const PathDashboard: React.FC = () => {
         // Refresh plan (handles path switches or external updates)
         setDailyPlan(loadPlanForPath(pathId));
     }, [pathId]);
-
-    // Auto-launch next task when arriving from handleNextTask popup
-    useEffect(() => {
-        if (autoStartHandled.current) return;
-        const autoTaskId = (location.state as { autoStartTaskId?: string } | null)?.autoStartTaskId;
-        if (!autoTaskId || !dailyPlan) return;
-
-        const task = dailyPlan.tasks.find(t => t.id === autoTaskId && !t.completed);
-        if (!task) return;
-
-        autoStartHandled.current = true;
-        const idx = dailyPlan.tasks.indexOf(task);
-        const params = new URLSearchParams({
-            taskTitle: task.title,
-            taskDesc: task.description,
-            skillRef: task.skillRef,
-            taskId: task.id,
-            taskIndex: String(idx),
-            totalTasks: String(dailyPlan.tasks.length),
-        });
-        // Replace history so back-button doesn't loop
-        navigate(`/mentor?${params.toString()}`, { replace: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [dailyPlan]);
 
     // Generate master feedback once when all tasks are done and none exists yet
     useEffect(() => {
@@ -112,6 +87,25 @@ const PathDashboard: React.FC = () => {
 
     if (!path) { navigate('/elegir-camino'); return null; }
     if (pathId && !isOnboardingComplete(pathId)) { navigate('/onboarding'); return null; }
+
+    // ── Synchronous redirect when arriving from "Siguiente tarjeta" popup ──
+    // Using <Navigate> (render-phase) instead of useEffect to avoid timing issues.
+    const autoTaskId = (location.state as { autoStartTaskId?: string } | null)?.autoStartTaskId;
+    if (autoTaskId && dailyPlan) {
+        const autoTask = dailyPlan.tasks.find(t => t.id === autoTaskId && !t.completed);
+        if (autoTask) {
+            const autoIdx = dailyPlan.tasks.indexOf(autoTask);
+            const autoParams = new URLSearchParams({
+                taskTitle: autoTask.title,
+                taskDesc: autoTask.description,
+                skillRef: autoTask.skillRef,
+                taskId: autoTask.id,
+                taskIndex: String(autoIdx),
+                totalTasks: String(dailyPlan.tasks.length),
+            });
+            return <Navigate to={`/mentor?${autoParams.toString()}`} replace />;
+        }
+    }
 
     const diagResult = pathId ? getDiagnosticResult(pathId) : null;
     const { pct, mastered, total, criticalMastered, criticalTotal } = calculateProgress(path, profileConcepts, assessments);
