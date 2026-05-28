@@ -45,13 +45,9 @@ async function makeDeepSeekRequest(systemRole: string, userMessage: string, temp
     }
 
     try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 45_000);
-        let response: Response;
-        try {
-            response = await fetch(DEEPSEEK_API_URL, {
+        const response = await Promise.race([
+            fetch(DEEPSEEK_API_URL, {
                 method: 'POST',
-                signal: controller.signal,
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${apiKey}`
@@ -66,14 +62,13 @@ async function makeDeepSeekRequest(systemRole: string, userMessage: string, temp
                     presence_penalty: 0.6,
                     max_tokens: 1500
                 })
-            });
-        } finally {
-            clearTimeout(timeout);
-        }
+            }),
+            new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout: la API tardó demasiado')), 30_000)),
+        ]);
 
         if (!response.ok) {
-            const err = await response.text();
-            throw new Error(`API Error: ${response.status} - ${err}`);
+            const err = await response.text().catch(() => '');
+            throw new Error(`API ${response.status}: ${err.slice(0, 200)}`);
         }
 
         const data = await response.json();

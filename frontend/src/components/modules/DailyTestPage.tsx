@@ -65,8 +65,9 @@ const DailyTestPage: React.FC = () => {
             const qs = await generateDailyTest(path, available, recentFailed, habilidades);
             setQuestions(qs);
             setStep('questions');
-        } catch {
-            setError('Error al generar el test. Comprueba tu clave de API.');
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : 'Error desconocido';
+            setError(`❌ ${msg}`);
             setStep('checkin');
         }
     };

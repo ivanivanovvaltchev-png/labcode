@@ -44,14 +44,9 @@ async function deepSeekRaw(systemPrompt: string, userPrompt: string): Promise<st
     const apiKey = import.meta.env.VITE_DEEPSEEK_API_KEY;
     if (!apiKey) throw new Error('No API Key');
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 45_000);
-
-    let response: Response;
-    try {
-        response = await fetch(DEEPSEEK_API_URL, {
+    const response = await Promise.race([
+        fetch(DEEPSEEK_API_URL, {
             method: 'POST',
-            signal: controller.signal,
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
             body: JSON.stringify({
                 model: 'deepseek-chat',
@@ -59,12 +54,14 @@ async function deepSeekRaw(systemPrompt: string, userPrompt: string): Promise<st
                 temperature: 0.6,
                 max_tokens: 600,
             }),
-        });
-    } finally {
-        clearTimeout(timeout);
-    }
+        }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout: la API tardó demasiado')), 30_000)),
+    ]);
 
-    if (!response.ok) throw new Error(await response.text());
+    if (!response.ok) {
+        const body = await response.text().catch(() => '');
+        throw new Error(`API ${response.status}: ${body.slice(0, 200)}`);
+    }
     const data = await response.json();
     return (data.choices?.[0]?.message?.content ?? '').trim();
 }
@@ -101,14 +98,9 @@ async function deepSeekJSON<T>(systemPrompt: string, userPrompt: string, tempera
     const apiKey = import.meta.env.VITE_DEEPSEEK_API_KEY;
     if (!apiKey) throw new Error('No API Key');
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 45_000);
-
-    let response: Response;
-    try {
-        response = await fetch(DEEPSEEK_API_URL, {
+    const response = await Promise.race([
+        fetch(DEEPSEEK_API_URL, {
             method: 'POST',
-            signal: controller.signal,
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
             body: JSON.stringify({
                 model: 'deepseek-chat',
@@ -119,12 +111,14 @@ async function deepSeekJSON<T>(systemPrompt: string, userPrompt: string, tempera
                 temperature,
                 max_tokens: 2000,
             }),
-        });
-    } finally {
-        clearTimeout(timeout);
-    }
+        }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout: la API tardó demasiado')), 30_000)),
+    ]);
 
-    if (!response.ok) throw new Error(await response.text());
+    if (!response.ok) {
+        const body = await response.text().catch(() => '');
+        throw new Error(`API ${response.status}: ${body.slice(0, 200)}`);
+    }
     const data = await response.json();
     const raw = data.choices?.[0]?.message?.content ?? '{}';
 
@@ -425,8 +419,8 @@ REGLAS:
     const today = new Date().toISOString().split('T')[0];
     const userPrompt = `Fecha de hoy: ${today}. Usa escenarios, valores y contextos COMPLETAMENTE DISTINTOS a los de días anteriores. Varía los números, las listas de ejemplo y el dominio (puede ser: temperaturas, notas de clase, precios, edades, puntuaciones, colores, frutas, etc.). Genera las 3 preguntas siguiendo exactamente la estructura del system prompt. Una por slot. Devuelve solo el JSON.`;
 
-    // Filter + retry — up to 3 attempts. Source of truth for forbidden terms: studentProfile.ts
-    const MAX_ATTEMPTS = 3;
+    // Filter — 1 attempt. Retrying silently was masking errors and adding 45s+ delays.
+    const MAX_ATTEMPTS = 1;
     let clean: TestQuestion[] = [];
 
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {

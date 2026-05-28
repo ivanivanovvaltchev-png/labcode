@@ -32,6 +32,7 @@ const PathDashboard: React.FC = () => {
     const [profileConcepts, setProfileConcepts] = useState<string[]>([]);
     const [dailyPlan, setDailyPlan] = useState<ReturnType<typeof getDailyPlan>>(null);
     const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
+    const [planError, setPlanError] = useState<string | null>(null);
     const [isGeneratingFeedback, setIsGeneratingFeedback] = useState(false);
     const [showSkillsDetail, setShowSkillsDetail] = useState(false);
 
@@ -100,7 +101,9 @@ const PathDashboard: React.FC = () => {
             saveDailyPlan(pathId, plan);
             setDailyPlan(plan);
         } catch (err) {
-            console.error('Error generando plan:', err);
+            const msg = err instanceof Error ? err.message : 'Error desconocido';
+            setPlanError(msg);
+            console.error('Error generando plan:', msg);
         } finally {
             setIsGeneratingPlan(false);
         }
@@ -219,8 +222,15 @@ const PathDashboard: React.FC = () => {
                         <p className="text-sm text-light/30 mb-7 max-w-sm mx-auto">
                             La IA genera 3 ejercicios personalizados según tus puntos débiles del diagnóstico.
                         </p>
+                        {planError && (
+                            <div className="mb-5 mx-auto max-w-md bg-red-900/20 border border-red-500/30 rounded-xl px-4 py-3 text-left">
+                                <p className="text-sm font-bold text-red-400 mb-1">❌ Error al generar el plan</p>
+                                <p className="text-xs text-red-300/70 font-mono break-all">{planError}</p>
+                                <p className="text-xs text-light/40 mt-2">Comprueba tu clave API de DeepSeek y reintenta.</p>
+                            </div>
+                        )}
                         <button
-                            onClick={handleGeneratePlan}
+                            onClick={() => { setPlanError(null); handleGeneratePlan(); }}
                             className="bg-violet-600 hover:bg-violet-500 text-white font-bold px-10 py-4 rounded-xl text-base transition-all"
                         >
                             ✨ Generar plan de hoy
