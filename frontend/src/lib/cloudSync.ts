@@ -104,12 +104,14 @@ export async function pushToCloud(userId: string): Promise<void> {
     const progress = safeJson(localStorage.getItem(KEYS.progress), null);
     const knowledgeProfile = safeJson(localStorage.getItem(KEYS.knowledgeProfile), null);
     const completedSessions = safeJson(localStorage.getItem(KEYS.completedSessions), []);
-    const selectedPath = localStorage.getItem(KEYS.selectedPath);
+    // The app stores selectedPath under 'selected_career_path'; fall back to KEYS.selectedPath
+    const selectedPath = localStorage.getItem('selected_career_path') ?? localStorage.getItem(KEYS.selectedPath);
     const selfAssessments = getAllSelfAssessments();
     const learningMetrics = safeJson(localStorage.getItem(KEYS.learningMetrics), null);
     const dailyTests = safeJson(localStorage.getItem(KEYS.dailyTests), null);
 
-    await supabase.from('user_data').upsert({
+    // Full upsert (requires learning_metrics + daily_tests columns to exist)
+    const { error } = await supabase.from('user_data').upsert({
         user_id: userId,
         progress,
         selected_path: selectedPath,
@@ -120,13 +122,29 @@ export async function pushToCloud(userId: string): Promise<void> {
         daily_tests: dailyTests,
         updated_at: new Date().toISOString(),
     });
+
+    if (error) {
+        // Fallback: upsert only the core columns that always exist
+        await supabase.from('user_data').upsert({
+            user_id: userId,
+            progress,
+            selected_path: selectedPath,
+            knowledge_profile: knowledgeProfile,
+            completed_sessions: completedSessions,
+            self_assessments: selfAssessments,
+            updated_at: new Date().toISOString(),
+        });
+    }
 }
 
+// Clears ephemeral session data but KEEPS labcode_user_progress so the daily plan
+// and XP survive sign-out. The plan is non-sensitive and should persist for the user.
 export function clearLocalData(): void {
+    const KEEP = new Set([KEYS.progress]); // daily plan + XP must survive sign-out
     const toRemove: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key && Object.values(KEYS).some(k => key.startsWith(k))) {
+        if (key && !KEEP.has(key) && Object.values(KEYS).some(k => key.startsWith(k))) {
             toRemove.push(key);
         }
     }
