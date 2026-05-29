@@ -6,6 +6,7 @@ import { loadKnowledgeProfile } from '../../lib/knowledgeProfile';
 import { isOnboardingComplete, getDiagnosticResult, getDailyPlan, completeTask, todayString, saveDailyPlan, saveMasterFeedback } from '../../lib/userProgress';
 import { generateDailyPlan, generateMasterFeedback } from '../../ai/diagnosticAgent';
 import { recordPractice, getHabilidadesValidadas, getActiveSkills } from '../../lib/learningMetrics';
+import { seedConceptRegistry } from '../../lib/masteryEngine';
 import { getActiveMentorTaskId } from './MentorPage';
 import { getTodayTest } from '../../lib/dailyTest';
 
@@ -59,6 +60,8 @@ const PathDashboard: React.FC = () => {
         setProfileConcepts(profile?.concepts ?? []);
         // Refresh plan (handles path switches or external updates)
         setDailyPlan(loadPlanForPath(pathId));
+        // Seed the mastery engine so the dynamic progression system is ready
+        seedConceptRegistry(pathId);
     }, [pathId]);
 
     // Re-read plan when pullFromCloud finishes writing to localStorage
@@ -141,7 +144,7 @@ const PathDashboard: React.FC = () => {
             const available = getAvailableSkills(path, concepts, assessments);
             const habilidades = getHabilidadesValidadas(path, concepts, assessments);
             const activeSkills = pathId ? getActiveSkills(pathId) : [];
-            const tasks = await generateDailyPlan(path, diagResult?.weakAreas ?? [], concepts, available, habilidades, activeSkills);
+            const tasks = await generateDailyPlan(path, diagResult?.weakAreas ?? [], concepts, available, habilidades, activeSkills, pathId);
             const plan = {
                 date: todayString(),
                 tasks: tasks.map((t, i) => ({ ...t, id: `task-${Date.now()}-${i}`, completed: false })),

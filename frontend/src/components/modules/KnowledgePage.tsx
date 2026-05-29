@@ -12,6 +12,8 @@ import { extractTextFromPDF } from '../../lib/pdfExtractor';
 import {
     addTheoryContext, removeTheoryContext, loadTheoryContexts, clearTheoryContext, TheoryContext,
 } from '../../lib/theoryContext';
+import { analyzeConceptsFromPDF } from '../../ai/pdfConceptAnalyzer';
+import { addConceptsFromPDF, getRegistryConcepts, seedConceptRegistry } from '../../lib/masteryEngine';
 
 const ACCEPTED_EXTS = ['.py', '.ipynb', '.txt'];
 const FILE_ICONS: Record<string, string> = { '.py': '🐍', '.ipynb': '📓', '.txt': '📄' };
@@ -111,6 +113,7 @@ const KnowledgePage: React.FC = () => {
     const [theoryCtxs, setTheoryCtxs] = useState<TheoryContext[]>([]);
     const [pdfLoading, setPdfLoading] = useState(false);
     const [pdfError, setPdfError] = useState('');
+    const [newConceptsDetected, setNewConceptsDetected] = useState<string[]>([]);
 
     useEffect(() => { setTheoryCtxs(loadTheoryContexts()); }, []);
 
@@ -121,6 +124,7 @@ const KnowledgePage: React.FC = () => {
         if (pdfs.length === 0) { setPdfError('Solo se aceptan archivos .pdf'); return; }
         setPdfLoading(true);
         setPdfError('');
+        setNewConceptsDetected([]);
         try {
             for (const file of pdfs) {
                 const rawText = await extractTextFromPDF(file);
@@ -131,6 +135,19 @@ const KnowledgePage: React.FC = () => {
                     extractedAt: Date.now(),
                 };
                 addTheoryContext(ctx);
+
+                // ── Concept extraction: detect NEW concepts from this PDF ──
+                if (pathId) {
+                    seedConceptRegistry(pathId);
+                    const alreadyKnown = getRegistryConcepts(pathId).map(c => c.name);
+                    const extracted = await analyzeConceptsFromPDF(rawText, alreadyKnown);
+                    if (extracted.length > 0) {
+                        const added = addConceptsFromPDF(pathId, extracted);
+                        if (added.length > 0) {
+                            setNewConceptsDetected(prev => [...prev, ...added]);
+                        }
+                    }
+                }
             }
             setTheoryCtxs(loadTheoryContexts());
         } catch {
@@ -244,6 +261,22 @@ const KnowledgePage: React.FC = () => {
                             </div>
 
                             {pdfError && <p className="text-xs text-red-400">{pdfError}</p>}
+
+                            {newConceptsDetected.length > 0 && (
+                                <div className="bg-emerald-900/15 border border-emerald-500/30 rounded-xl px-4 py-3">
+                                    <p className="text-xs font-bold text-emerald-400 mb-2">
+                                        🧠 {newConceptsDetected.length} concepto{newConceptsDetected.length > 1 ? 's' : ''} nuevo{newConceptsDetected.length > 1 ? 's' : ''} detectado{newConceptsDetected.length > 1 ? 's' : ''} en el PDF
+                                    </p>
+                                    <p className="text-xs text-light/40 mb-2">
+                                        Se han añadido a la Tarjeta 3 de tu plan diario. A medida que practiques, irán ascendiendo a Tarjeta 2 y luego a Tarjeta 1.
+                                    </p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {newConceptsDetected.map(c => (
+                                            <span key={c} className="bg-emerald-900/30 border border-emerald-500/20 text-emerald-300 text-xs px-2 py-0.5 rounded-full">{c}</span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
                             {theoryCtxs.length > 0 && (
                                 <div className="space-y-2">

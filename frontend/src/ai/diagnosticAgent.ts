@@ -7,6 +7,7 @@ import {
     TEST_SLOTS,
 } from './studentProfile';
 import { getContextForPrompt } from '../lib/theoryContext';
+import { getSlotConceptsForPrompt } from '../lib/masteryEngine';
 
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions';
 
@@ -298,15 +299,61 @@ export async function generateDailyPlan(
     _profileConcepts: string[],
     _availableSkills: { name: string; importance: string; order: number }[],
     _habilidadesValidadas: string[],
-    activeSkills: string[] = []
+    activeSkills: string[] = [],
+    pathId: string = ''
 ): Promise<DailyTaskRaw[]> {
-    const skills = path.skills; // kept for post-generation validation fallback
     const pathContext = buildPathContext(path);
     const knowledgeBlock = buildKnowledgeBlock();
 
-    const activeFocus = activeSkills.length > 0
-        ? `\nHABILIDADES EN FOCO — el alumno las ha practicado recientemente. PRIORIZA estas habilidades en los escenarios de las 3 tarjetas:\n${activeSkills.map(s => `• ${s}`).join('\n')}\n`
+    // ── Dynamic slot computation ─────────────────────────────────────────────
+    // If we have a pathId, read the student's real mastery state to determine
+    // what goes in each card. Otherwise fall back to the static structure.
+    const usesDynamicSlots = Boolean(pathId);
+    const slots = pathId ? getSlotConceptsForPrompt(pathId) : null;
+
+    const activeFocus = activeSkills.length > 0 && !usesDynamicSlots
+        ? `\nHABILIDADES EN FOCO — el alumno las ha practicado recientemente:\n${activeSkills.map(s => `• ${s}`).join('\n')}\n`
         : '';
+
+    // ── Card descriptions (static fallback or dynamic) ────────────────────────
+    let card1Block: string;
+    let card2Block: string;
+    let card3Block: string;
+
+    if (slots) {
+        // Dynamic: each card is driven by real mastery data
+        const s1 = slots.slot1.length > 0
+            ? slots.slot1.join(', ')
+            : 'Variables, condicionales y bucles básicos';
+        const s2 = slots.slot2.length > 0
+            ? slots.slot2.join(', ')
+            : 'Listas y bucles combinados';
+        const s3 = slots.slot3.length > 0
+            ? slots.slot3.join(', ')
+            : 'Introducción a NumPy Arrays';
+
+        card1Block = `TARJETA 1 — REPASO (conceptos consolidados del alumno — mastery ≥ 70%)
+Conceptos a repasar: ${s1}
+Crea un ejercicio de REPASO que combine estos conceptos. Varía el escenario (precios, temperaturas, notas, edades, stock). No menciones que es un repaso en el enunciado. Sin funciones def/return.`;
+
+        card2Block = `TARJETA 2 — PRÁCTICA ACTIVA (conceptos que el alumno está reforzando — mastery 35–69%)
+Conceptos a practicar: ${s2}
+Crea un ejercicio de PRÁCTICA DELIBERADA centrado en estos conceptos. Puede ser un mini-programa con menú o un ejercicio de manipulación de datos. Sin funciones def/return.`;
+
+        card3Block = `TARJETA 3 — APRENDIZAJE NUEVO (concepto recién introducido — mastery < 35%)
+Concepto nuevo a introducir: ${s3}
+Crea una INTRODUCCIÓN GUIADA paso a paso de este concepto. El enunciado debe explicar brevemente qué es y pedir que el alumno lo pruebe en un contexto concreto. Usa ejemplos simples. Sin funciones def/return.`;
+    } else {
+        // Static fallback (no pathId provided)
+        card1Block = `TARJETA 1 — Repaso de Bucles y Condicionales
+Enunciado donde el usuario recorra una lista ya definida en el código con for o while y use if/elif/else para filtrar o clasificar. Varía el escenario (precios, temperaturas, notas, edades). Sin funciones.`;
+
+        card2Block = `TARJETA 2 — Proyecto Práctico de Consola
+Mini-programa con while, menú numérico (opciones 1, 2, 3 y salir), y una lista que el usuario construye con input(). Escenarios: lista de la compra, registro de notas, inventario simple. Sin funciones.`;
+
+        card3Block = `TARJETA 3 — Introducción a NumPy Arrays
+Ejercicio guiado paso a paso con numpy. Usa: np.zeros(), np.ones(), np.arange(), array.copy(), np.sum(), array[::-1] o np.intersect1d(). Varía el escenario. Solo numpy básico, sin funciones.`;
+    }
 
     const systemPrompt = `Eres un generador de ejercicios prácticos de Python. Devuelve ÚNICAMENTE el JSON indicado, sin texto extra ni markdown.
 
@@ -314,42 +361,42 @@ ${pathContext}
 
 ${knowledgeBlock}
 ${activeFocus}
-CUALQUIER otro concepto (funciones def/return, diccionarios, tuplas, clases, SQL, Git, pseudocódigo, .split(), excepciones, ORM, librerías distintas a numpy) está TERMINANTEMENTE PROHIBIDO.
+CUALQUIER otro concepto (funciones def/return, diccionarios, tuplas, clases, SQL, Git, pseudocódigo, .split(), excepciones, ORM, librerías distintas a numpy) está TERMINANTEMENTE PROHIBIDO a menos que aparezca explícitamente en el material teórico de arriba.
 
-FORMATO DE RESPUESTA:
+FORMATO DE RESPUESTA — devuelve exactamente este JSON (solo rellena description, los demás campos son fijos):
 [
-  {"type": "review",   "title": "Repaso de Bucles y Condicionales", "description": "...", "skillRef": "Bucle for e iteración"},
-  {"type": "practice", "title": "Proyecto Práctico de Consola",     "description": "...", "skillRef": "Listas"},
-  {"type": "learn",    "title": "Introducción a NumPy Arrays",      "description": "...", "skillRef": "Arrays y módulos"}
+  {"type": "review",   "title": "Tarjeta 1 — Repaso", "description": "...", "skillRef": "Repaso consolidado"},
+  {"type": "practice", "title": "Tarjeta 2 — Práctica", "description": "...", "skillRef": "Práctica activa"},
+  {"type": "learn",    "title": "Tarjeta 3 — Aprender", "description": "...", "skillRef": "Concepto nuevo"}
 ]
 
-Los campos type, title y skillRef son FIJOS. Solo rellena description:
+${card1Block}
 
-TARJETA 1 — Repaso de Bucles y Condicionales
-Enunciado donde el usuario recorra una lista ya definida en el código con for o while y use if/elif/else para filtrar o clasificar. Varía el escenario (precios, temperaturas, notas, edades). Sin funciones.
+${card2Block}
 
-TARJETA 2 — Proyecto Práctico de Consola
-Mini-programa con while, menú numérico (opciones 1, 2, 3 y salir), y una lista que el usuario construye con input(). Escenarios: lista de la compra, registro de notas, inventario simple. Sin funciones. Si las habilidades en foco incluyen numpy, la lista puede ser de valores numéricos para luego procesarlos con numpy.
+${card3Block}`;
 
-TARJETA 3 — Introducción a NumPy Arrays
-Ejercicio guiado paso a paso con numpy. Si las habilidades en foco incluyen operaciones numpy específicas (np.intersect1d, np.sum, np.arange, array[::-1], etc.), úsalas como eje central del enunciado. De lo contrario usa: np.zeros(), np.ones(), np.arange(), array.copy(), np.sum(), array[::-1] o np.intersect1d(). Varía el escenario. Solo numpy básico, sin funciones.`;
-
-    const userPrompt = `Genera las 3 tarjetas. Varía el escenario de la description para que no se repita siempre el mismo ejemplo. Devuelve solo el JSON.`;
+    const userPrompt = `Genera las 3 tarjetas con escenarios DISTINTOS entre sí y distintos a los de sesiones anteriores. Devuelve solo el JSON array.`;
 
     const result = await deepSeekJSON<DailyTaskRaw[]>(systemPrompt, userPrompt);
 
-    // The skillRefs are hardcoded in the prompt, so fallback to path skills only
-    // if the AI ignores the template entirely.
-    const validNames = new Set(skills.map(s => s.name.toLowerCase()));
-    return result.map((task) => {
-        const isValid = validNames.has(task.skillRef.toLowerCase()) ||
-            skills.some(s => s.name.toLowerCase().includes(task.skillRef.toLowerCase().split(' ')[0]));
-        if (!isValid) {
-            const fallback = skills.find(s => !s.selfAssess) ?? skills[0];
-            return { ...task, skillRef: fallback?.name ?? task.skillRef };
+    // Normalize the titles and skillRefs so they reflect the actual slot content
+    const normalized = result.map((task, idx) => {
+        const slotLabels = slots
+            ? [
+                { title: `Repaso — ${slots.slot1[0] ?? 'Conceptos consolidados'}`, skillRef: slots.slot1[0] ?? 'Repaso consolidado' },
+                { title: `Práctica — ${slots.slot2[0] ?? 'Conceptos en progreso'}`, skillRef: slots.slot2[0] ?? 'Práctica activa' },
+                { title: `Aprender — ${slots.slot3[0] ?? 'Concepto nuevo'}`,        skillRef: slots.slot3[0] ?? 'Concepto nuevo' },
+              ]
+            : null;
+
+        if (slotLabels && slotLabels[idx]) {
+            return { ...task, title: slotLabels[idx].title, skillRef: slotLabels[idx].skillRef };
         }
         return task;
     });
+
+    return normalized;
 }
 
 // ─── Master Feedback ─────────────────────────────────────────────────────────
@@ -403,20 +450,50 @@ export async function generateDailyTest(
     _availableSkills: PathSkill[],
     _recentFailedSkills: string[],
     _habilidadesValidadas: string[],
-    activeSkills: string[] = []
+    activeSkills: string[] = [],
+    pathId: string = ''
 ): Promise<TestQuestion[]> {
-    // Ignore the dynamic availableSkills/habilidadesValidadas — the test structure
-    // is fixed by the student profile. 3 questions, 3 mandatory topic slots.
     const pathContext = buildPathContext(path);
     const knowledgeBlock = buildKnowledgeBlock();
 
-    const activeFocus = activeSkills.length > 0
-        ? `\nHABILIDADES EN FOCO (el alumno las ha practicado recientemente — sesga las preguntas hacia estas cuando sea compatible con los slots):\n${activeSkills.map(s => `• ${s}`).join('\n')}\n`
-        : '';
+    // ── Dynamic slot computation ─────────────────────────────────────────────
+    const slots = pathId ? getSlotConceptsForPrompt(pathId) : null;
 
-    const slotsBlock = TEST_SLOTS.map(s =>
-        `PREGUNTA ${s.slot} — Tema: ${s.tema}\nInstrucción: ${s.instruccion}`
-    ).join('\n\n');
+    let slotsBlock: string;
+
+    if (slots) {
+        // Dynamic: test questions reflect the student's real progression
+        const s1Str = slots.slot1.length > 0
+            ? slots.slot1.slice(0, 3).join(' / ')
+            : 'Bucles for/while y Listas';
+        const s2Str = slots.slot2.length > 0
+            ? slots.slot2.slice(0, 2).join(' / ')
+            : 'Condicionales if/elif/else';
+        const s3Str = slots.slot3.length > 0
+            ? slots.slot3[0]
+            : 'NumPy Arrays — introducción';
+
+        slotsBlock = `PREGUNTA 1 — REPASO (conceptos consolidados — mastery ≥ 70%)
+Tema: ${s1Str}
+Instrucción: Pregunta de opción múltiple sobre uno de estos conceptos consolidados. Elige el más interesante para repasar hoy. Sin funciones def ni return.
+
+PREGUNTA 2 — PRÁCTICA (conceptos en refuerzo — mastery 35–69%)
+Tema: ${s2Str}
+Instrucción: Pregunta de opción múltiple sobre uno de estos conceptos que el alumno está practicando activamente. Sin funciones def ni return.
+
+PREGUNTA 3 — CONCEPTO NUEVO (recién introducido — mastery < 35%)
+Tema: ${s3Str}
+Instrucción: Pregunta de opción múltiple sobre este concepto nuevo. Puede ser más básica — el alumno lo está viendo por primera vez. Sin funciones def ni return.`;
+    } else {
+        // Static fallback
+        slotsBlock = TEST_SLOTS.map(s =>
+            `PREGUNTA ${s.slot} — Tema: ${s.tema}\nInstrucción: ${s.instruccion}`
+        ).join('\n\n');
+    }
+
+    const activeFocus = activeSkills.length > 0 && !slots
+        ? `\nHABILIDADES EN FOCO (sesga las preguntas hacia estas cuando sea compatible con los slots):\n${activeSkills.map(s => `• ${s}`).join('\n')}\n`
+        : '';
 
     const systemPrompt = `Eres un evaluador de teoría de Python. Generas exactamente 3 preguntas de opción múltiple (A, B, C).
 
@@ -444,20 +521,23 @@ REGLAS:
 - Las preguntas evalúan TEORÍA pura (¿qué hace?, ¿cuál es el resultado?, ¿qué error da?).
 - Cuando la pregunta incluya código Python, usa SALTOS DE LÍNEA REALES (\\n en JSON) para formatear cada sentencia en su propia línea. El código va después de la pregunta separado por \\n.
 - Las opciones incorrectas deben ser errores comunes plausibles, no tonterías obvias.
-- PROHIBIDO ABSOLUTO: def, return, funciones, SQL, diccionarios, tuplas, clases, Git, pseudocódigo, .split(), excepciones, ORM.`;
+- PROHIBIDO ABSOLUTO: def, return, SQL, Git, pseudocódigo, .split(), excepciones, ORM — a menos que aparezcan en el material teórico de arriba como conceptos a evaluar.`;
 
     const today = new Date().toISOString().split('T')[0];
-    const userPrompt = `Fecha de hoy: ${today}. Usa escenarios, valores y contextos COMPLETAMENTE DISTINTOS a los de días anteriores. Varía los números, las listas de ejemplo y el dominio (puede ser: temperaturas, notas de clase, precios, edades, puntuaciones, colores, frutas, etc.). Genera las 3 preguntas siguiendo exactamente la estructura del system prompt. Una por slot. Devuelve solo el JSON.`;
+    const userPrompt = `Fecha de hoy: ${today}. Usa escenarios, valores y contextos COMPLETAMENTE DISTINTOS a los de días anteriores. Varía los números, las listas de ejemplo y el dominio (temperaturas, notas, precios, edades, puntuaciones, colores, frutas, inventarios…). Genera las 3 preguntas siguiendo la estructura del system prompt. Una por slot. Devuelve solo el JSON.`;
 
-    // Filter — 1 attempt. Retrying silently was masking errors and adding 45s+ delays.
-    const MAX_ATTEMPTS = 1;
-    let clean: TestQuestion[] = [];
+    const raw = await deepSeekJSON<TestQuestion[]>(systemPrompt, userPrompt, 0.85);
 
-    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-        const raw = await deepSeekJSON<TestQuestion[]>(systemPrompt, userPrompt, 0.85);
-        clean = raw.filter(questionPassesGuard).slice(0, 3);
-        if (clean.length >= TEST_SLOTS.length) break;
-    }
+    // Tag each question with the concept from its slot so mastery tracking works
+    const tagged = raw.map((q, idx) => {
+        if (!slots) return q;
+        const slotRefs = [
+            slots.slot1[0] ?? 'Repaso consolidado',
+            slots.slot2[0] ?? 'Práctica activa',
+            slots.slot3[0] ?? 'Concepto nuevo',
+        ];
+        return { ...q, skillRef: slotRefs[idx] ?? q.skillRef };
+    });
 
-    return clean;
+    return tagged.filter(questionPassesGuard).slice(0, 3);
 }

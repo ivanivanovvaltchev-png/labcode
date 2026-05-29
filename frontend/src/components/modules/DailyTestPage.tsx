@@ -5,6 +5,7 @@ import { loadSelectedPath, loadSelfAssessments } from '../../lib/selectedPath';
 import { getPathById, getAvailableSkills } from '../../data/careerPaths';
 import { loadKnowledgeProfile } from '../../lib/knowledgeProfile';
 import { getHabilidadesValidadas, loadMetrics, getActiveSkills } from '../../lib/learningMetrics';
+import { seedConceptRegistry } from '../../lib/masteryEngine';
 import { generateDailyTest } from '../../ai/diagnosticAgent';
 import {
     TestQuestion, DailyCheckin, TestSession, EisenhowerMatrix,
@@ -59,11 +60,12 @@ const DailyTestPage: React.FC = () => {
         setStep('loading');
         setError('');
         try {
+            if (pathId) seedConceptRegistry(pathId);
             const available = getAvailableSkills(path, concepts, selfAssessments);
             const habilidades = getHabilidadesValidadas(path, concepts, selfAssessments);
             const recentFailed = getRecentFailedSkills(7);
             const activeSkills = pathId ? getActiveSkills(pathId) : [];
-            const qs = await generateDailyTest(path, available, recentFailed, habilidades, activeSkills);
+            const qs = await generateDailyTest(path, available, recentFailed, habilidades, activeSkills, pathId);
             setQuestions(qs);
             setStep('questions');
         } catch (err) {

@@ -8,6 +8,7 @@ import { loadSelectedPath, loadSelfAssessments } from '../../lib/selectedPath';
 import { getPathById, isSkillMastered } from '../../data/careerPaths';
 import { generateSkillExercise } from '../../ai/diagnosticAgent';
 import { recordMentorSession } from '../../lib/learningMetrics';
+import { ensureConceptTracked } from '../../lib/masteryEngine';
 
 const STORAGE_KEY = 'mentor_session';
 
@@ -201,6 +202,7 @@ const MentorPage: React.FC = () => {
             if (pathId) {
                 const skill = path?.skills.find(s => s.name === currentSkillContext);
                 recordMentorSession(pathId, skill?.id ?? currentSkillContext, currentSkillContext);
+                ensureConceptTracked(pathId, currentSkillContext);
             }
         }
     }, [isCompleted, currentSkillContext]);
@@ -278,6 +280,7 @@ const MentorPage: React.FC = () => {
             if (pathId) {
                 const skill = path?.skills.find(s => s.name === currentSkillContext);
                 recordMentorSession(pathId, skill?.id ?? currentSkillContext, currentSkillContext);
+                ensureConceptTracked(pathId, currentSkillContext);
             }
         }
         saveCompletedSession({ exercise, messages, completedAt: Date.now(), isVariantOf: variantOrigin ?? undefined });
