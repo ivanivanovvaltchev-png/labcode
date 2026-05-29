@@ -61,6 +61,19 @@ const PathDashboard: React.FC = () => {
         setDailyPlan(loadPlanForPath(pathId));
     }, [pathId]);
 
+    // Re-read plan when pullFromCloud finishes writing to localStorage
+    useEffect(() => {
+        if (!pathId) return;
+        const onCloudSync = () => {
+            setAssessments(loadSelfAssessments(pathId));
+            const profile = loadKnowledgeProfile();
+            setProfileConcepts(profile?.concepts ?? []);
+            setDailyPlan(loadPlanForPath(pathId));
+        };
+        window.addEventListener('labcode:cloud_synced', onCloudSync);
+        return () => window.removeEventListener('labcode:cloud_synced', onCloudSync);
+    }, [pathId]);
+
     // Generate master feedback once when all tasks are done and none exists yet
     useEffect(() => {
         if (!pathId || !dailyPlan) return;

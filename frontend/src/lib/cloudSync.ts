@@ -95,6 +95,9 @@ export async function pullFromCloud(userId: string): Promise<void> {
             localStorage.setItem(`${KEYS.selfAssessmentsPrefix}${pathId}`, JSON.stringify(vals));
         });
     }
+
+    // Notify UI components that cloud data has landed in localStorage
+    window.dispatchEvent(new Event('labcode:cloud_synced'));
 }
 
 export async function pushToCloud(userId: string): Promise<void> {
