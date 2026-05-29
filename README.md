@@ -5,7 +5,9 @@
 [![Stack](https://img.shields.io/badge/Stack-React%20%7C%20TypeScript%20%7C%20Vite-purple?style=flat-square)]()
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)]()
 
-LabCode es un **Entrenador Personal con IA de Alto Rendimiento** diseñado de forma nativa por y para estudiantes de programación. Su propósito absoluto no es seguir un temario genérico, sino acelerar la **empleabilidad real** del alumno mediante un bucle continuo de análisis cognitivo, personalizando el ritmo de estudio y mitigando por completo el estancamiento o la frustración.
+LabCode es un motor de aprendizaje adaptativo conceptualizado y dirigido por **Iván Ivanov Valtchev** (alumno del Máster), con código e infraestructura desarrollados íntegramente por **Claude Code** bajo una metodología de Product Management impulsada por IA.
+
+Su propósito absoluto no es seguir un temario genérico, sino acelerar la **empleabilidad real** del alumno mediante un bucle continuo de análisis cognitivo, personalizando el ritmo de estudio y mitigando por completo el estancamiento o la frustración.
 
 > **Demo en producción:** [labcode-kappa.vercel.app](https://labcode-kappa.vercel.app)
 
@@ -325,16 +327,13 @@ Después del primer deploy, añade la URL de Vercel en:
 
 ---
 
-## 👤 Autor
+## 👤 Autoría
 
-**Iván Ivanov Valtchev** — Alumno del Máster Full Stack de ConquerBlocks.
+**Conceptualizado y dirigido por:** Iván Ivanov Valtchev — Alumno del Máster Full Stack de ConquerBlocks.  
+**Desarrollo técnico y generación de código:** Claude Code (Anthropic).
 
-Construido como demostración real de que lo aprendido en el Máster es suficiente para crear herramientas de producción que resuelven problemas reales.
+Este proyecto nace como una demostración real de cómo un estudiante puede apalancarse en las tecnologías de Inteligencia Artificial Generativa para estructurar, diseñar y desplegar herramientas de producción que complementan el proceso de aprendizaje del Máster.
 
 - 📧 ivanivanovvaltchev@gmail.com
 - 🌐 [labcode-kappa.vercel.app](https://labcode-kappa.vercel.app)
 - 💻 [github.com/ivanivanovvaltchev-png/labcode](https://github.com/ivanivanovvaltchev-png/labcode)
-
----
-
-*"Construir esto ha sido la prueba más honesta de que el Máster funciona."*
