@@ -4,7 +4,7 @@ import PythonCodeBlock, { splitQuestionCode } from '../ui/PythonCodeBlock';
 import { loadSelectedPath, loadSelfAssessments } from '../../lib/selectedPath';
 import { getPathById, getAvailableSkills } from '../../data/careerPaths';
 import { loadKnowledgeProfile } from '../../lib/knowledgeProfile';
-import { getHabilidadesValidadas, loadMetrics } from '../../lib/learningMetrics';
+import { getHabilidadesValidadas, loadMetrics, getActiveSkills } from '../../lib/learningMetrics';
 import { generateDailyTest } from '../../ai/diagnosticAgent';
 import {
     TestQuestion, DailyCheckin, TestSession, EisenhowerMatrix,
@@ -62,7 +62,8 @@ const DailyTestPage: React.FC = () => {
             const available = getAvailableSkills(path, concepts, selfAssessments);
             const habilidades = getHabilidadesValidadas(path, concepts, selfAssessments);
             const recentFailed = getRecentFailedSkills(7);
-            const qs = await generateDailyTest(path, available, recentFailed, habilidades);
+            const activeSkills = pathId ? getActiveSkills(pathId) : [];
+            const qs = await generateDailyTest(path, available, recentFailed, habilidades, activeSkills);
             setQuestions(qs);
             setStep('questions');
         } catch (err) {

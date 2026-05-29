@@ -39,6 +39,7 @@ function App() {
     const [isLoading, setIsLoading] = useState(true);
     const [xp, setXp] = useState(getTotalXP());
     const syncIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const userIdRef = useRef<string | null>(null);
 
     // Push to cloud periodically and on unload
     const startSyncInterval = (userId: string) => {
@@ -57,6 +58,7 @@ function App() {
             setSession(s);
             setIsLoading(false);
             if (s) {
+                userIdRef.current = s.user.id;
                 // Pull from cloud in background — don't block the UI
                 pullFromCloud(s.user.id).then(() => setXp(getTotalXP()));
                 cleanupUnload = startSyncInterval(s.user.id);
@@ -66,12 +68,21 @@ function App() {
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
             setSession(s);
             if (s) {
+                userIdRef.current = s.user.id;
                 pullFromCloud(s.user.id).then(() => setXp(getTotalXP()));
                 cleanupUnload = startSyncInterval(s.user.id);
             } else {
-                // Signed out — clear local data
+                // Signed out — push latest data FIRST, then clear local storage
                 if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
-                clearLocalData();
+                const uid = userIdRef.current;
+                if (uid) {
+                    pushToCloud(uid).finally(() => {
+                        clearLocalData();
+                        userIdRef.current = null;
+                    });
+                } else {
+                    clearLocalData();
+                }
             }
         });
 

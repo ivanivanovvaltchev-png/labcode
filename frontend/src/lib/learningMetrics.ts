@@ -198,6 +198,43 @@ export function totalXpFromMetrics(metrics: LearningMetrics): number {
     return metrics.dailyMetrics.reduce((s, d) => s + d.xpEarned, 0);
 }
 
+/**
+ * Returns the skill names the student has actively worked on in the last N days,
+ * sorted by recency + frequency. Used to bias plan and test generation.
+ */
+export function getActiveSkills(pathId: string, days = 4): string[] {
+    const metrics = loadMetrics(pathId);
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+    const cutoffStr = cutoff.toISOString().split('T')[0];
+
+    const skillScore: Record<string, number> = {};
+
+    // Score from daily activity log (most recent days count more)
+    const sortedDays = [...metrics.dailyMetrics]
+        .filter(d => d.date >= cutoffStr)
+        .sort((a, b) => b.date.localeCompare(a.date));
+
+    sortedDays.forEach((day, idx) => {
+        const recencyWeight = 1 / (idx + 1); // day 0 = 1x, day 1 = 0.5x, day 2 = 0.33x…
+        for (const skill of day.skillsWorked) {
+            skillScore[skill] = (skillScore[skill] ?? 0) + recencyWeight;
+        }
+    });
+
+    // Also boost skills with high mastery-growth (practiceCount and recent practice)
+    for (const m of Object.values(metrics.skillMastery)) {
+        if (m.lastPracticed >= cutoffStr + 'T' && m.practiceCount > 1) {
+            skillScore[m.skillName] = (skillScore[m.skillName] ?? 0) + m.practiceCount * 0.3;
+        }
+    }
+
+    return Object.entries(skillScore)
+        .sort((a, b) => b[1] - a[1])
+        .map(([name]) => name)
+        .slice(0, 5);
+}
+
 // ─── State-Driven Prompting ───────────────────────────────────────────────────
 
 /**

@@ -297,18 +297,23 @@ export async function generateDailyPlan(
     _weakAreas: string[],
     _profileConcepts: string[],
     _availableSkills: { name: string; importance: string; order: number }[],
-    _habilidadesValidadas: string[]
+    _habilidadesValidadas: string[],
+    activeSkills: string[] = []
 ): Promise<DailyTaskRaw[]> {
     const skills = path.skills; // kept for post-generation validation fallback
     const pathContext = buildPathContext(path);
     const knowledgeBlock = buildKnowledgeBlock();
+
+    const activeFocus = activeSkills.length > 0
+        ? `\nHABILIDADES EN FOCO — el alumno las ha practicado recientemente. PRIORIZA estas habilidades en los escenarios de las 3 tarjetas:\n${activeSkills.map(s => `• ${s}`).join('\n')}\n`
+        : '';
 
     const systemPrompt = `Eres un generador de ejercicios prácticos de Python. Devuelve ÚNICAMENTE el JSON indicado, sin texto extra ni markdown.
 
 ${pathContext}
 
 ${knowledgeBlock}
-
+${activeFocus}
 CUALQUIER otro concepto (funciones def/return, diccionarios, tuplas, clases, SQL, Git, pseudocódigo, .split(), excepciones, ORM, librerías distintas a numpy) está TERMINANTEMENTE PROHIBIDO.
 
 FORMATO DE RESPUESTA:
@@ -324,10 +329,10 @@ TARJETA 1 — Repaso de Bucles y Condicionales
 Enunciado donde el usuario recorra una lista ya definida en el código con for o while y use if/elif/else para filtrar o clasificar. Varía el escenario (precios, temperaturas, notas, edades). Sin funciones.
 
 TARJETA 2 — Proyecto Práctico de Consola
-Mini-programa con while, menú numérico (opciones 1, 2, 3 y salir), y una lista que el usuario construye con input(). Escenarios: lista de la compra, registro de notas, inventario simple. Sin funciones.
+Mini-programa con while, menú numérico (opciones 1, 2, 3 y salir), y una lista que el usuario construye con input(). Escenarios: lista de la compra, registro de notas, inventario simple. Sin funciones. Si las habilidades en foco incluyen numpy, la lista puede ser de valores numéricos para luego procesarlos con numpy.
 
 TARJETA 3 — Introducción a NumPy Arrays
-Ejercicio guiado paso a paso con numpy: np.zeros(), np.ones(), np.arange(), array.copy(), np.sum(), array[::-1] o np.intersect1d(). Varía el escenario. Solo numpy básico, sin funciones.`;
+Ejercicio guiado paso a paso con numpy. Si las habilidades en foco incluyen operaciones numpy específicas (np.intersect1d, np.sum, np.arange, array[::-1], etc.), úsalas como eje central del enunciado. De lo contrario usa: np.zeros(), np.ones(), np.arange(), array.copy(), np.sum(), array[::-1] o np.intersect1d(). Varía el escenario. Solo numpy básico, sin funciones.`;
 
     const userPrompt = `Genera las 3 tarjetas. Varía el escenario de la description para que no se repita siempre el mismo ejemplo. Devuelve solo el JSON.`;
 
@@ -397,12 +402,17 @@ export async function generateDailyTest(
     path: CareerPath,
     _availableSkills: PathSkill[],
     _recentFailedSkills: string[],
-    _habilidadesValidadas: string[]
+    _habilidadesValidadas: string[],
+    activeSkills: string[] = []
 ): Promise<TestQuestion[]> {
     // Ignore the dynamic availableSkills/habilidadesValidadas — the test structure
     // is fixed by the student profile. 3 questions, 3 mandatory topic slots.
     const pathContext = buildPathContext(path);
     const knowledgeBlock = buildKnowledgeBlock();
+
+    const activeFocus = activeSkills.length > 0
+        ? `\nHABILIDADES EN FOCO (el alumno las ha practicado recientemente — sesga las preguntas hacia estas cuando sea compatible con los slots):\n${activeSkills.map(s => `• ${s}`).join('\n')}\n`
+        : '';
 
     const slotsBlock = TEST_SLOTS.map(s =>
         `PREGUNTA ${s.slot} — Tema: ${s.tema}\nInstrucción: ${s.instruccion}`
@@ -413,7 +423,7 @@ export async function generateDailyTest(
 ${pathContext}
 
 ${knowledgeBlock}
-
+${activeFocus}
 ESTRUCTURA OBLIGATORIA — genera EXACTAMENTE estas 3 preguntas en este orden:
 
 ${slotsBlock}

@@ -271,6 +271,15 @@ const MentorPage: React.FC = () => {
     };
 
     const handleCreateVariant = async () => {
+        // Record that the user is actively working this skill (variant = extra practice)
+        if (currentSkillContext) {
+            const pathId = loadSelectedPath();
+            const path = pathId ? getPathById(pathId) : null;
+            if (pathId) {
+                const skill = path?.skills.find(s => s.name === currentSkillContext);
+                recordMentorSession(pathId, skill?.id ?? currentSkillContext, currentSkillContext);
+            }
+        }
         saveCompletedSession({ exercise, messages, completedAt: Date.now(), isVariantOf: variantOrigin ?? undefined });
         clearActiveSession();
         setCompletedSessions(loadCompletedSessions());
