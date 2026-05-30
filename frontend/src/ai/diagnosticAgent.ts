@@ -305,64 +305,72 @@ export async function generateDailyPlan(
     const pathContext = buildPathContext(path);
     const knowledgeBlock = buildKnowledgeBlock();
 
-    // ── Mode selection ────────────────────────────────────────────────────────
-    // ACTIVE TOPIC MODE: if the student has been practicing something recently,
-    // all 3 cards cover that same concept at increasing difficulty (basic → advanced).
-    // This answers "why don't the cards change when I practice arrays?" — they do,
-    // but only once the active skill is detected from recent sessions.
+    // ── Topic focus detection ─────────────────────────────────────────────────
     //
-    // SLOT MODE (fallback): no recent practice → one card per mastery level.
-    const cleanActive = activeSkills.filter(s => !s.startsWith('Repaso') && !s.startsWith('Práctica') && !s.startsWith('Aprender') && !s.startsWith('Básico') && !s.startsWith('Intermedio') && !s.startsWith('Avanzado') && s.length > 3);
-    const activeTopic = cleanActive[0] ?? null;
+    // KEY RULE (from FLUJO_LABCODE): the 3 cards always focus on what the student
+    // is CURRENTLY LEARNING — Slot 2 (practicing) and Slot 3 (new from PDF).
+    // Slot 1 concepts are already mastered (≥70%) and must NEVER drive the cards.
+    //
+    // Detection priority:
+    //   1. Recent practice of a non-Slot-1 concept → use that (confirms active topic)
+    //   2. Slot 2 concepts (mastery 35–69%) → default learning zone
+    //   3. Slot 3 concepts (mastery <35%, from PDF) → newest, needs introduction
+    //   4. Pure fallback (empty registry) → NumPy basics from studentProfile
 
-    let card1Block: string;
-    let card2Block: string;
-    let card3Block: string;
-    let skillRef1: string;
-    let skillRef2: string;
-    let skillRef3: string;
+    const slotData = pathId ? getSlotConceptsForPrompt(pathId) : null;
 
-    if (activeTopic) {
-        // ── ACTIVE TOPIC MODE ────────────────────────────────────────────────
-        // All 3 cards are about the same concept the student has been working on,
-        // progressing from a simple foundation to a real challenge.
-        skillRef1 = activeTopic;
-        skillRef2 = activeTopic;
-        skillRef3 = activeTopic;
+    // Concepts already mastered — must not become card topic
+    const slot1Set = new Set(slotData?.slot1 ?? []);
 
-        card1Block = `TARJETA 1 — BÁSICO
-Concepto: ${activeTopic}
-Crea un ejercicio BÁSICO e introductorio sobre este concepto. Muy directo, un solo objetivo claro. Ideal para que el alumno afiance la base antes de avanzar. Sin funciones def/return.`;
+    // Prefixes from old/corrupted card titles — filter these out too
+    const BAD = ['Repaso', 'Práctica', 'Aprender', 'Básico', 'Intermedio', 'Avanzado', 'Tarjeta'];
+    const isClean = (s: string) => s.trim().length > 3 && !BAD.some(p => s.startsWith(p));
 
-        card2Block = `TARJETA 2 — INTERMEDIO
-Concepto: ${activeTopic}
-Crea un ejercicio INTERMEDIO que combine ${activeTopic} con otros conceptos ya dominados (listas, bucles, condicionales). Algo más complejo que el básico pero asequible. Sin funciones def/return.`;
+    // Non-Slot-1 skills the student practiced recently (most reliable signal)
+    const recentNonMastered = activeSkills.filter(s => isClean(s) && !slot1Set.has(s));
 
-        card3Block = `TARJETA 3 — AVANZADO
-Concepto: ${activeTopic}
-Crea un ejercicio AVANZADO que exija dominar ${activeTopic} en un escenario real más complejo. Puede combinar varias operaciones del mismo concepto. Sin funciones def/return.`;
-    } else {
-        // ── SLOT MODE (fallback when no recent practice) ─────────────────────
-        const slots = pathId ? getSlotConceptsForPrompt(pathId) : null;
-        const s1 = slots?.slot1[0] ?? 'Bucles for/while y Listas';
-        const s2 = slots?.slot2[0] ?? 'NumPy Arrays básico';
-        const s3 = slots?.slot3[0] ?? 'Introducción a NumPy';
-        skillRef1 = s1;
-        skillRef2 = s2;
-        skillRef3 = s3;
+    // All concepts in the current learning zone (Slot 2 + Slot 3)
+    const learningZone = [
+        ...(slotData?.slot2 ?? []),
+        ...(slotData?.slot3 ?? []),
+    ].filter(isClean);
 
-        card1Block = `TARJETA 1 — REPASO (mastery ≥ 70%)
-Concepto: ${s1}
-Ejercicio de repaso. Varía el escenario. Sin funciones def/return.`;
+    // The single concept that anchors all 3 cards
+    const rawFocus = recentNonMastered[0] ?? learningZone[0] ?? 'NumPy Arrays básico';
 
-        card2Block = `TARJETA 2 — PRÁCTICA ACTIVA (mastery 35–69%)
-Concepto: ${s2}
-Ejercicio de práctica deliberada. Sin funciones def/return.`;
-
-        card3Block = `TARJETA 3 — APRENDER (mastery < 35%)
-Concepto: ${s3}
-Introducción guiada con ejemplos simples. Sin funciones def/return.`;
+    // Map individual concept names to a clean topic label for the card titles
+    // (e.g. "np.zeros(n) — array de ceros" → "NumPy Arrays")
+    function resolveTopicLabel(name: string): string {
+        if (/numpy|np\.|array\[/i.test(name))                    return 'NumPy Arrays';
+        if (/lista|list|append|pop|sort|slice|slicing/i.test(name)) return 'Listas';
+        if (/bucle|for|while|range|iterar/i.test(name))          return 'Bucles';
+        if (/if|elif|else|condici|booleano/i.test(name))         return 'Condicionales';
+        if (/variable|str|int|float|bool|aritm|operat/i.test(name)) return 'Variables y Tipos';
+        // fallback: use the first clause before ":" or "("
+        return name.split(/[:(]/)[0].trim() || name;
     }
+
+    const topicLabel = resolveTopicLabel(rawFocus);
+
+    // Full list of related concepts for the AI (so it can vary exercises within the topic)
+    const relatedConcepts = learningZone.length > 0
+        ? learningZone.slice(0, 6).join(' · ')
+        : rawFocus;
+
+    const card1Block = `TARJETA 1 — BÁSICO
+Tema: ${topicLabel}
+Conceptos del alumno en este tema: ${relatedConcepts}
+Crea un ejercicio MUY BÁSICO. Un solo objetivo. Directo y concreto. El alumno aplica por primera vez o repasa la base. Sin funciones def/return.`;
+
+    const card2Block = `TARJETA 2 — INTERMEDIO
+Tema: ${topicLabel}
+Conceptos del alumno en este tema: ${relatedConcepts}
+Crea un ejercicio INTERMEDIO. Combina varios aspectos de ${topicLabel} o úsalo junto a bucles/listas. Más exigente que el básico. Sin funciones def/return.`;
+
+    const card3Block = `TARJETA 3 — AVANZADO
+Tema: ${topicLabel}
+Conceptos del alumno en este tema: ${relatedConcepts}
+Crea un ejercicio AVANZADO. Escenario real, varias operaciones concatenadas, algo que requiera pensar. Sin funciones def/return.`;
 
     const systemPrompt = `Eres un generador de ejercicios prácticos de Python. Devuelve ÚNICAMENTE el JSON indicado, sin texto extra ni markdown.
 
@@ -374,12 +382,12 @@ CUALQUIER concepto que no aparezca en el material de arriba (funciones def/retur
 
 FORMATO — devuelve exactamente este JSON array sin texto extra:
 [
-  {"type": "review",   "title": "...", "description": "ENUNCIADO COMPLETO del ejercicio aquí. Mínimo 3 frases.", "skillRef": "..."},
-  {"type": "practice", "title": "...", "description": "ENUNCIADO COMPLETO del ejercicio aquí. Mínimo 3 frases.", "skillRef": "..."},
-  {"type": "learn",    "title": "...", "description": "ENUNCIADO COMPLETO del ejercicio aquí. Mínimo 3 frases.", "skillRef": "..."}
+  {"type": "review",   "title": "...", "description": "ENUNCIADO COMPLETO aquí. Mínimo 4 frases con pasos claros.", "skillRef": "..."},
+  {"type": "practice", "title": "...", "description": "ENUNCIADO COMPLETO aquí. Mínimo 4 frases con pasos claros.", "skillRef": "..."},
+  {"type": "learn",    "title": "...", "description": "ENUNCIADO COMPLETO aquí. Mínimo 4 frases con pasos claros.", "skillRef": "..."}
 ]
 
-IMPORTANTE sobre description: escribe el enunciado COMPLETO del ejercicio tal como se lo darías al alumno — con contexto, instrucciones paso a paso y ejemplo de entrada/salida si aplica. El alumno verá esta descripción en la tarjeta Y el Mentor la usará para guiarle. Deben ser idénticas.
+CRÍTICO — description: escribe el enunciado COMPLETO tal como se lo darías al alumno. Con contexto, pasos numerados y ejemplo si aplica. Este texto aparece en la tarjeta Y es lo que el Mentor usará para guiar al alumno — deben ser idénticos.
 
 ${card1Block}
 
@@ -387,22 +395,16 @@ ${card2Block}
 
 ${card3Block}`;
 
-    const userPrompt = `Genera las 3 tarjetas con escenarios DISTINTOS entre sí y distintos a los de días anteriores. Semilla aleatoria: ${Math.random().toString(36).slice(2, 8)}. Devuelve solo el JSON array.`;
+    const userPrompt = `Genera las 3 tarjetas con escenarios DISTINTOS entre sí (distintos datos, contextos y escenarios). Semilla: ${Math.random().toString(36).slice(2, 8)}. Devuelve solo el JSON array.`;
 
     const result = await deepSeekJSON<DailyTaskRaw[]>(systemPrompt, userPrompt);
 
-    // Stamp clean titles and skillRefs — never inherit AI-generated ones that may be noisy
-    const labels = activeTopic
-        ? [
-            { title: `Básico — ${activeTopic}`,      skillRef: skillRef1 },
-            { title: `Intermedio — ${activeTopic}`,  skillRef: skillRef2 },
-            { title: `Avanzado — ${activeTopic}`,    skillRef: skillRef3 },
-          ]
-        : [
-            { title: `Repaso — ${skillRef1}`,   skillRef: skillRef1 },
-            { title: `Práctica — ${skillRef2}`, skillRef: skillRef2 },
-            { title: `Aprender — ${skillRef3}`, skillRef: skillRef3 },
-          ];
+    // Overwrite title and skillRef with clean values — never inherit noisy AI output
+    const labels = [
+        { title: `Básico — ${topicLabel}`,      skillRef: topicLabel },
+        { title: `Intermedio — ${topicLabel}`,  skillRef: topicLabel },
+        { title: `Avanzado — ${topicLabel}`,    skillRef: topicLabel },
+    ];
 
     return result.map((task, idx) =>
         labels[idx] ? { ...task, title: labels[idx].title, skillRef: labels[idx].skillRef } : task
