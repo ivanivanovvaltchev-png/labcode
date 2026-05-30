@@ -13,7 +13,7 @@ import {
     addTheoryContext, removeTheoryContext, loadTheoryContexts, clearTheoryContext, TheoryContext,
 } from '../../lib/theoryContext';
 import { analyzeConceptsFromPDF } from '../../ai/pdfConceptAnalyzer';
-import { addConceptsFromPDF, getRegistryConcepts, seedConceptRegistry } from '../../lib/masteryEngine';
+import { addConceptsFromPDF, getRegistryConcepts, seedConceptRegistry, boostMasteryFromCodeAnalysis } from '../../lib/masteryEngine';
 
 const ACCEPTED_EXTS = ['.py', '.ipynb', '.txt'];
 const FILE_ICONS: Record<string, string> = { '.py': '🐍', '.ipynb': '📓', '.txt': '📄' };
@@ -94,9 +94,16 @@ const KnowledgePage: React.FC = () => {
             };
             saveKnowledgeProfile(newProfile);
             setProfile(newProfile);
-            // Re-seed mastery from freshly detected concepts
+            // Re-seed curriculum mastery from freshly detected concepts
             if (pathId && path) {
                 seedMasteryFromProfile(pathId, path, newProfile.concepts, selfAssessments);
+                // Also update the ConceptRegistry (card slot engine) from the detected concepts.
+                // This is what makes "uploading your .py files" actually affect the daily plan:
+                // concepts found in real code get a mastery boost and may shift between slots.
+                const boosted = boostMasteryFromCodeAnalysis(pathId, result.concepts);
+                if (boosted.length > 0) {
+                    console.info(`[masteryEngine] Boosted ${boosted.length} concepts from code analysis:`, boosted);
+                }
                 setMetrics(loadMetrics(pathId));
             }
             setPendingFiles([]);

@@ -162,6 +162,97 @@ export function getRegistryConcepts(pathId: string): TrackedConcept[] {
     return registry.concepts;
 }
 
+// ─── Code analysis integration ────────────────────────────────────────────────
+
+/**
+ * Cross-references concepts detected from uploaded .py/.ipynb files with the
+ * ConceptRegistry and boosts mastery for matching entries.
+ *
+ * Matching logic: a detected concept matches a registry entry if they share at
+ * least one meaningful keyword (length > 2, not a Spanish stopword).
+ *
+ * Boost rules:
+ *   - Registry concept matched in code → mastery = max(current, 65%)
+ *     (Code evidence = real understanding, but not yet "mastered" at 70%)
+ *   - New concept detected in code that isn't in registry → added at 55%
+ *     (Likely knows it if they wrote it, but needs practice to confirm)
+ *   - lastPracticed is updated so getActiveSkills() recognises the concept
+ *
+ * Returns the names of concepts whose mastery was updated.
+ */
+export function boostMasteryFromCodeAnalysis(
+    pathId: string,
+    detectedConcepts: string[]
+): string[] {
+    if (!pathId || detectedConcepts.length === 0) return [];
+
+    seedConceptRegistry(pathId);
+    const registry = loadConceptRegistry(pathId);
+    const metrics = loadMetrics(pathId);
+    const now = new Date().toISOString();
+    const updated: string[] = [];
+
+    const STOPWORDS = new Set(['con', 'una', 'para', 'que', 'los', 'las', 'del', 'son', 'por', 'sus', 'uso', 'use', 'the', 'and', 'for']);
+    const keywords = (s: string) =>
+        s.toLowerCase()
+         .split(/[\s,;:()\[\]→—\-_]+/)
+         .filter(t => t.length > 2 && !STOPWORDS.has(t));
+
+    function matches(detected: string, registered: string): boolean {
+        const dk = keywords(detected);
+        const rk = keywords(registered);
+        return dk.some(d => rk.some(r => r.includes(d) || d.includes(r)));
+    }
+
+    // ── Boost existing registry concepts that appear in the uploaded code ─────
+    for (const regConcept of registry.concepts) {
+        const matched = detectedConcepts.some(dc => matches(dc, regConcept.name));
+        if (!matched) continue;
+
+        const existing = metrics.skillMastery[regConcept.name];
+        if (existing) {
+            const boosted = Math.max(existing.masteryPct, 65);
+            if (boosted !== existing.masteryPct || !existing.lastPracticed) {
+                existing.masteryPct = boosted;
+                existing.lastPracticed = now;
+                existing.practiceCount = Math.max(existing.practiceCount + 1, 1);
+                updated.push(regConcept.name);
+            }
+        } else {
+            metrics.skillMastery[regConcept.name] = {
+                skillId: regConcept.name,
+                skillName: regConcept.name,
+                masteryPct: 65,
+                practiceCount: 1,
+                lastPracticed: now,
+            };
+            updated.push(regConcept.name);
+        }
+    }
+
+    // ── Add genuinely new concepts from code that aren't in the registry ──────
+    const existingNames = new Set(registry.concepts.map(c => c.name));
+    for (const dc of detectedConcepts) {
+        if (!isValidConceptName(dc)) continue;
+        const alreadyInRegistry = registry.concepts.some(rc => matches(dc, rc.name));
+        if (!alreadyInRegistry && !existingNames.has(dc)) {
+            registry.concepts.push({ name: dc, source: 'practice', addedAt: Date.now(), initialMastery: 55 });
+            existingNames.add(dc);
+            metrics.skillMastery[dc] = {
+                skillId: dc, skillName: dc,
+                masteryPct: 55, practiceCount: 1, lastPracticed: now,
+            };
+            updated.push(dc);
+        }
+    }
+
+    if (updated.length > 0) {
+        saveConceptRegistry(registry);
+        saveMetrics(metrics);
+    }
+    return updated;
+}
+
 // ─── Slot computation ─────────────────────────────────────────────────────────
 
 /**
