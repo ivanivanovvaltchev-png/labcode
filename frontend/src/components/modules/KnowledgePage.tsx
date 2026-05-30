@@ -36,6 +36,7 @@ const KnowledgePage: React.FC = () => {
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [dragOver, setDragOver] = useState(false);
     const [error, setError] = useState('');
+    const [uploadInfo, setUploadInfo] = useState('');
     const [activeTab, setActiveTab] = useState<'upload' | 'mastery' | 'gap' | 'activity'>('upload');
 
     const pathId = loadSelectedPath();
@@ -57,17 +58,39 @@ const KnowledgePage: React.FC = () => {
         const valid = Array.from(files).filter(f => isAccepted(f.name));
         if (valid.length === 0) { setError(`Solo se aceptan ${ACCEPTED_EXTS.join(', ')}`); return; }
         setError('');
+        const alreadyAnalyzed = new Set(profile?.analyzedFiles ?? []);
         Promise.all(
-            valid.map(file => new Promise<{ name: string; content: string }>(resolve => {
+            valid.map(file => new Promise<{ name: string; content: string; isNew: boolean }>(resolve => {
                 const reader = new FileReader();
-                reader.onload = e => resolve({ name: file.name, content: e.target?.result as string });
+                reader.onload = e => resolve({
+                    name: file.name,
+                    content: e.target?.result as string,
+                    isNew: !alreadyAnalyzed.has(file.name),
+                });
                 reader.readAsText(file);
             }))
         ).then(results => {
+            // Separate new files (not yet analyzed) from already-known ones
+            const newFiles = results.filter(r => r.isNew);
+            const alreadyKnown = results.filter(r => !r.isNew);
+
+            if (newFiles.length === 0 && alreadyKnown.length > 0) {
+                setError('');
+                setUploadInfo(`Todos los archivos ya fueron analizados anteriormente. Añade ejercicios nuevos a tu carpeta para actualizar el perfil.`);
+                return;
+            }
+
             setPendingFiles(prev => {
                 const existing = new Set(prev.map(f => f.name));
-                return [...prev, ...results.filter(r => !existing.has(r.name))];
+                return [...prev, ...newFiles.filter(r => !existing.has(r.name))];
             });
+
+            setError('');
+            if (alreadyKnown.length > 0) {
+                setUploadInfo(`${alreadyKnown.length} archivo${alreadyKnown.length > 1 ? 's' : ''} ya analizado${alreadyKnown.length > 1 ? 's' : ''} omitido${alreadyKnown.length > 1 ? 's' : ''} · solo se analizarán los ${newFiles.length} nuevo${newFiles.length !== 1 ? 's' : ''}`);
+            } else {
+                setUploadInfo('');
+            }
         });
     };
 
@@ -78,6 +101,7 @@ const KnowledgePage: React.FC = () => {
         if (pendingFiles.length === 0) return;
         setIsAnalyzing(true);
         setError('');
+        setUploadInfo('');
         try {
             const allCode = pendingFiles
                 .map(f => `# --- ${f.name} ---\n${extractCodeFromFile(f.name, f.content)}`)
@@ -346,6 +370,9 @@ const KnowledgePage: React.FC = () => {
                         </div>
 
                         {error && <p className="text-sm text-red-400 text-center">{error}</p>}
+                        {uploadInfo && !error && (
+                            <p className="text-xs text-amber-400/80 text-center bg-amber-900/10 border border-amber-500/20 rounded-xl px-3 py-2">{uploadInfo}</p>
+                        )}
 
                         {pendingFiles.length > 0 && (
                             <div className="bg-[#1a1a1a] border border-light/10 rounded-2xl p-5">
