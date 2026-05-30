@@ -305,54 +305,63 @@ export async function generateDailyPlan(
     const pathContext = buildPathContext(path);
     const knowledgeBlock = buildKnowledgeBlock();
 
-    // ── Dynamic slot computation ─────────────────────────────────────────────
-    // If we have a pathId, read the student's real mastery state to determine
-    // what goes in each card. Otherwise fall back to the static structure.
-    const usesDynamicSlots = Boolean(pathId);
-    const slots = pathId ? getSlotConceptsForPrompt(pathId) : null;
+    // ── Mode selection ────────────────────────────────────────────────────────
+    // ACTIVE TOPIC MODE: if the student has been practicing something recently,
+    // all 3 cards cover that same concept at increasing difficulty (basic → advanced).
+    // This answers "why don't the cards change when I practice arrays?" — they do,
+    // but only once the active skill is detected from recent sessions.
+    //
+    // SLOT MODE (fallback): no recent practice → one card per mastery level.
+    const cleanActive = activeSkills.filter(s => !s.startsWith('Repaso') && !s.startsWith('Práctica') && !s.startsWith('Aprender') && !s.startsWith('Básico') && !s.startsWith('Intermedio') && !s.startsWith('Avanzado') && s.length > 3);
+    const activeTopic = cleanActive[0] ?? null;
 
-    const activeFocus = activeSkills.length > 0 && !usesDynamicSlots
-        ? `\nHABILIDADES EN FOCO — el alumno las ha practicado recientemente:\n${activeSkills.map(s => `• ${s}`).join('\n')}\n`
-        : '';
-
-    // ── Card descriptions (static fallback or dynamic) ────────────────────────
     let card1Block: string;
     let card2Block: string;
     let card3Block: string;
+    let skillRef1: string;
+    let skillRef2: string;
+    let skillRef3: string;
 
-    if (slots) {
-        // Dynamic: each card is driven by real mastery data
-        const s1 = slots.slot1.length > 0
-            ? slots.slot1.join(', ')
-            : 'Variables, condicionales y bucles básicos';
-        const s2 = slots.slot2.length > 0
-            ? slots.slot2.join(', ')
-            : 'Listas y bucles combinados';
-        const s3 = slots.slot3.length > 0
-            ? slots.slot3.join(', ')
-            : 'Introducción a NumPy Arrays';
+    if (activeTopic) {
+        // ── ACTIVE TOPIC MODE ────────────────────────────────────────────────
+        // All 3 cards are about the same concept the student has been working on,
+        // progressing from a simple foundation to a real challenge.
+        skillRef1 = activeTopic;
+        skillRef2 = activeTopic;
+        skillRef3 = activeTopic;
 
-        card1Block = `TARJETA 1 — REPASO (conceptos consolidados del alumno — mastery ≥ 70%)
-Conceptos a repasar: ${s1}
-Crea un ejercicio de REPASO que combine estos conceptos. Varía el escenario (precios, temperaturas, notas, edades, stock). No menciones que es un repaso en el enunciado. Sin funciones def/return.`;
+        card1Block = `TARJETA 1 — BÁSICO
+Concepto: ${activeTopic}
+Crea un ejercicio BÁSICO e introductorio sobre este concepto. Muy directo, un solo objetivo claro. Ideal para que el alumno afiance la base antes de avanzar. Sin funciones def/return.`;
 
-        card2Block = `TARJETA 2 — PRÁCTICA ACTIVA (conceptos que el alumno está reforzando — mastery 35–69%)
-Conceptos a practicar: ${s2}
-Crea un ejercicio de PRÁCTICA DELIBERADA centrado en estos conceptos. Puede ser un mini-programa con menú o un ejercicio de manipulación de datos. Sin funciones def/return.`;
+        card2Block = `TARJETA 2 — INTERMEDIO
+Concepto: ${activeTopic}
+Crea un ejercicio INTERMEDIO que combine ${activeTopic} con otros conceptos ya dominados (listas, bucles, condicionales). Algo más complejo que el básico pero asequible. Sin funciones def/return.`;
 
-        card3Block = `TARJETA 3 — APRENDIZAJE NUEVO (concepto recién introducido — mastery < 35%)
-Concepto nuevo a introducir: ${s3}
-Crea una INTRODUCCIÓN GUIADA paso a paso de este concepto. El enunciado debe explicar brevemente qué es y pedir que el alumno lo pruebe en un contexto concreto. Usa ejemplos simples. Sin funciones def/return.`;
+        card3Block = `TARJETA 3 — AVANZADO
+Concepto: ${activeTopic}
+Crea un ejercicio AVANZADO que exija dominar ${activeTopic} en un escenario real más complejo. Puede combinar varias operaciones del mismo concepto. Sin funciones def/return.`;
     } else {
-        // Static fallback (no pathId provided)
-        card1Block = `TARJETA 1 — Repaso de Bucles y Condicionales
-Enunciado donde el usuario recorra una lista ya definida en el código con for o while y use if/elif/else para filtrar o clasificar. Varía el escenario (precios, temperaturas, notas, edades). Sin funciones.`;
+        // ── SLOT MODE (fallback when no recent practice) ─────────────────────
+        const slots = pathId ? getSlotConceptsForPrompt(pathId) : null;
+        const s1 = slots?.slot1[0] ?? 'Bucles for/while y Listas';
+        const s2 = slots?.slot2[0] ?? 'NumPy Arrays básico';
+        const s3 = slots?.slot3[0] ?? 'Introducción a NumPy';
+        skillRef1 = s1;
+        skillRef2 = s2;
+        skillRef3 = s3;
 
-        card2Block = `TARJETA 2 — Proyecto Práctico de Consola
-Mini-programa con while, menú numérico (opciones 1, 2, 3 y salir), y una lista que el usuario construye con input(). Escenarios: lista de la compra, registro de notas, inventario simple. Sin funciones.`;
+        card1Block = `TARJETA 1 — REPASO (mastery ≥ 70%)
+Concepto: ${s1}
+Ejercicio de repaso. Varía el escenario. Sin funciones def/return.`;
 
-        card3Block = `TARJETA 3 — Introducción a NumPy Arrays
-Ejercicio guiado paso a paso con numpy. Usa: np.zeros(), np.ones(), np.arange(), array.copy(), np.sum(), array[::-1] o np.intersect1d(). Varía el escenario. Solo numpy básico, sin funciones.`;
+        card2Block = `TARJETA 2 — PRÁCTICA ACTIVA (mastery 35–69%)
+Concepto: ${s2}
+Ejercicio de práctica deliberada. Sin funciones def/return.`;
+
+        card3Block = `TARJETA 3 — APRENDER (mastery < 35%)
+Concepto: ${s3}
+Introducción guiada con ejemplos simples. Sin funciones def/return.`;
     }
 
     const systemPrompt = `Eres un generador de ejercicios prácticos de Python. Devuelve ÚNICAMENTE el JSON indicado, sin texto extra ni markdown.
@@ -360,15 +369,17 @@ Ejercicio guiado paso a paso con numpy. Usa: np.zeros(), np.ones(), np.arange(),
 ${pathContext}
 
 ${knowledgeBlock}
-${activeFocus}
-CUALQUIER otro concepto (funciones def/return, diccionarios, tuplas, clases, SQL, Git, pseudocódigo, .split(), excepciones, ORM, librerías distintas a numpy) está TERMINANTEMENTE PROHIBIDO a menos que aparezca explícitamente en el material teórico de arriba.
 
-FORMATO DE RESPUESTA — devuelve exactamente este JSON (solo rellena description, los demás campos son fijos):
+CUALQUIER concepto que no aparezca en el material de arriba (funciones def/return, diccionarios, tuplas, clases, SQL, Git, pseudocódigo, excepciones, ORM) está TERMINANTEMENTE PROHIBIDO.
+
+FORMATO — devuelve exactamente este JSON array sin texto extra:
 [
-  {"type": "review",   "title": "Tarjeta 1 — Repaso", "description": "...", "skillRef": "Repaso consolidado"},
-  {"type": "practice", "title": "Tarjeta 2 — Práctica", "description": "...", "skillRef": "Práctica activa"},
-  {"type": "learn",    "title": "Tarjeta 3 — Aprender", "description": "...", "skillRef": "Concepto nuevo"}
+  {"type": "review",   "title": "...", "description": "ENUNCIADO COMPLETO del ejercicio aquí. Mínimo 3 frases.", "skillRef": "..."},
+  {"type": "practice", "title": "...", "description": "ENUNCIADO COMPLETO del ejercicio aquí. Mínimo 3 frases.", "skillRef": "..."},
+  {"type": "learn",    "title": "...", "description": "ENUNCIADO COMPLETO del ejercicio aquí. Mínimo 3 frases.", "skillRef": "..."}
 ]
+
+IMPORTANTE sobre description: escribe el enunciado COMPLETO del ejercicio tal como se lo darías al alumno — con contexto, instrucciones paso a paso y ejemplo de entrada/salida si aplica. El alumno verá esta descripción en la tarjeta Y el Mentor la usará para guiarle. Deben ser idénticas.
 
 ${card1Block}
 
@@ -376,27 +387,26 @@ ${card2Block}
 
 ${card3Block}`;
 
-    const userPrompt = `Genera las 3 tarjetas con escenarios DISTINTOS entre sí y distintos a los de sesiones anteriores. Devuelve solo el JSON array.`;
+    const userPrompt = `Genera las 3 tarjetas con escenarios DISTINTOS entre sí y distintos a los de días anteriores. Semilla aleatoria: ${Math.random().toString(36).slice(2, 8)}. Devuelve solo el JSON array.`;
 
     const result = await deepSeekJSON<DailyTaskRaw[]>(systemPrompt, userPrompt);
 
-    // Normalize the titles and skillRefs so they reflect the actual slot content
-    const normalized = result.map((task, idx) => {
-        const slotLabels = slots
-            ? [
-                { title: `Repaso — ${slots.slot1[0] ?? 'Conceptos consolidados'}`, skillRef: slots.slot1[0] ?? 'Repaso consolidado' },
-                { title: `Práctica — ${slots.slot2[0] ?? 'Conceptos en progreso'}`, skillRef: slots.slot2[0] ?? 'Práctica activa' },
-                { title: `Aprender — ${slots.slot3[0] ?? 'Concepto nuevo'}`,        skillRef: slots.slot3[0] ?? 'Concepto nuevo' },
-              ]
-            : null;
+    // Stamp clean titles and skillRefs — never inherit AI-generated ones that may be noisy
+    const labels = activeTopic
+        ? [
+            { title: `Básico — ${activeTopic}`,      skillRef: skillRef1 },
+            { title: `Intermedio — ${activeTopic}`,  skillRef: skillRef2 },
+            { title: `Avanzado — ${activeTopic}`,    skillRef: skillRef3 },
+          ]
+        : [
+            { title: `Repaso — ${skillRef1}`,   skillRef: skillRef1 },
+            { title: `Práctica — ${skillRef2}`, skillRef: skillRef2 },
+            { title: `Aprender — ${skillRef3}`, skillRef: skillRef3 },
+          ];
 
-        if (slotLabels && slotLabels[idx]) {
-            return { ...task, title: slotLabels[idx].title, skillRef: slotLabels[idx].skillRef };
-        }
-        return task;
-    });
-
-    return normalized;
+    return result.map((task, idx) =>
+        labels[idx] ? { ...task, title: labels[idx].title, skillRef: labels[idx].skillRef } : task
+    );
 }
 
 // ─── Master Feedback ─────────────────────────────────────────────────────────

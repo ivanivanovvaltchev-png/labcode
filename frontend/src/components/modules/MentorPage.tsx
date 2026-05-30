@@ -66,6 +66,7 @@ const MentorPage: React.FC = () => {
 
     // URL params from PathDashboard "Empezar ejercicio"
     const paramTaskTitle      = searchParams.get('taskTitle');
+    const paramTaskDesc       = searchParams.get('taskDesc');        // exercise text from the card
     const paramSkillRef       = searchParams.get('skillRef');
     const paramTaskId         = searchParams.get('taskId');
     const paramTaskIndex      = searchParams.get('taskIndex');
@@ -131,36 +132,49 @@ const MentorPage: React.FC = () => {
 
         } else if (hasSkillContext) {
             // ── NEW exercise: coming from a skill/task button ──
-            const skillLabel = paramTaskTitle ?? paramSkillRef ?? '';
+            // Prefer paramSkillRef as the skill context (clean concept name without slot prefix)
+            const skillLabel = paramSkillRef ?? paramTaskTitle ?? '';
             setCurrentSkillContext(skillLabel);
             setIsFromTaskCard(true);
             if (paramTaskId)        setSavedTaskId(paramTaskId);
             if (taskIndex !== null) setSavedTaskIndex(taskIndex);
             if (totalTasks !== null) setSavedTotalTasks(totalTasks);
 
-            setIsGeneratingExercise(true);
             setExerciseSubmitted(true);
 
-            const pathId = loadSelectedPath();
-            const path = pathId ? getPathById(pathId) : null;
-            const profile = loadKnowledgeProfile();
-
-            generateSkillExercise(
-                paramSkillRef ?? paramTaskTitle ?? '',
-                path?.title ?? 'Programación',
-                profile?.concepts ?? []
-            ).then(async generatedExercise => {
-                setExercise(generatedExercise);
-                setIsGeneratingExercise(false);
+            if (paramTaskDesc && paramTaskDesc.trim().length > 20) {
+                // ── Fast path: use the exercise text from the card directly ──
+                // This ensures the Mentor works on exactly the exercise the student saw in the card.
+                setExercise(paramTaskDesc);
                 setIsLoading(true);
-                const resp = await callDeepSeekForMentor(generatedExercise, [], 'init', getKnowledgeBlock());
-                setMessages([{ role: 'assistant', content: resp }]);
-                setIsLoading(false);
-                setSearchParams({}, { replace: true });
-            }).catch(() => {
-                setIsGeneratingExercise(false);
-                setExerciseSubmitted(false);
-            });
+                callDeepSeekForMentor(paramTaskDesc, [], 'init', getKnowledgeBlock()).then(resp => {
+                    setMessages([{ role: 'assistant', content: resp }]);
+                    setIsLoading(false);
+                    setSearchParams({}, { replace: true });
+                }).catch(() => setIsLoading(false));
+            } else {
+                // ── Fallback: generate a fresh exercise from the skill reference ──
+                setIsGeneratingExercise(true);
+                const pathId = loadSelectedPath();
+                const path = pathId ? getPathById(pathId) : null;
+                const profile = loadKnowledgeProfile();
+                generateSkillExercise(
+                    paramSkillRef ?? paramTaskTitle ?? '',
+                    path?.title ?? 'Programación',
+                    profile?.concepts ?? []
+                ).then(async generatedExercise => {
+                    setExercise(generatedExercise);
+                    setIsGeneratingExercise(false);
+                    setIsLoading(true);
+                    const resp = await callDeepSeekForMentor(generatedExercise, [], 'init', getKnowledgeBlock());
+                    setMessages([{ role: 'assistant', content: resp }]);
+                    setIsLoading(false);
+                    setSearchParams({}, { replace: true });
+                }).catch(() => {
+                    setIsGeneratingExercise(false);
+                    setExerciseSubmitted(false);
+                });
+            }
 
         } else if (session?.messages.length) {
             setSavedSession(session);

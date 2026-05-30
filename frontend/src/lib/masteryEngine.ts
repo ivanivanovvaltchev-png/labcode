@@ -34,12 +34,26 @@ export interface DynamicSlots {
 
 // ─── Storage ──────────────────────────────────────────────────────────────────
 
-export function loadConceptRegistry(pathId: string): ConceptRegistry {
+export // Concept names that start with these prefixes are card-title artifacts, not real concepts.
+// They get written when MentorPage incorrectly used the card title as the skillRef.
+const BAD_PREFIXES = ['Repaso —', 'Práctica —', 'Aprender —', 'Básico —', 'Intermedio —', 'Avanzado —', 'Tarjeta'];
+
+function isValidConceptName(name: string): boolean {
+    return name.trim().length > 3 && !BAD_PREFIXES.some(p => name.startsWith(p));
+}
+
+function loadConceptRegistry(pathId: string): ConceptRegistry {
     try {
         const raw = localStorage.getItem(REGISTRY_KEY);
         if (raw) {
             const parsed = JSON.parse(raw) as ConceptRegistry;
-            if (parsed.pathId === pathId) return parsed;
+            if (parsed.pathId === pathId) {
+                // Clean out corrupted entries on every load
+                const before = parsed.concepts.length;
+                parsed.concepts = parsed.concepts.filter(c => isValidConceptName(c.name));
+                if (parsed.concepts.length !== before) saveConceptRegistry(parsed);
+                return parsed;
+            }
         }
     } catch { /* ignore */ }
     return { pathId, concepts: [], updatedAt: Date.now() };
@@ -123,7 +137,7 @@ export function addConceptsFromPDF(pathId: string, newConcepts: string[]): strin
  * Idempotent: does nothing if the concept already exists.
  */
 export function ensureConceptTracked(pathId: string, skillName: string): void {
-    if (!skillName || !pathId) return;
+    if (!skillName || !pathId || !isValidConceptName(skillName)) return;
     const registry = loadConceptRegistry(pathId);
     if (registry.concepts.find(c => c.name === skillName)) return;
     registry.concepts.push({
