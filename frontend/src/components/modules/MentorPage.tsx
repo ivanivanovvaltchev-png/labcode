@@ -7,7 +7,7 @@ import { completeTask, getDailyPlan } from '../../lib/userProgress';
 import { loadSelectedPath, loadSelfAssessments } from '../../lib/selectedPath';
 import { getPathById, isSkillMastered } from '../../data/careerPaths';
 import { generateSkillExercise } from '../../ai/diagnosticAgent';
-import { recordMentorSession } from '../../lib/learningMetrics';
+import { recordMentorSession, getActiveSkills } from '../../lib/learningMetrics';
 import { ensureConceptTracked } from '../../lib/masteryEngine';
 
 const STORAGE_KEY = 'mentor_session';
@@ -206,18 +206,28 @@ const MentorPage: React.FC = () => {
         )
     );
 
-    // Record session completion once when isCompleted first becomes true
+    // Record session completion once when isCompleted first becomes true.
+    // Works for both task-card exercises (currentSkillContext = card skillRef)
+    // and free exercises (currentSkillContext = null → falls back to most active skill).
     const completionRecordedRef = useRef(false);
     useEffect(() => {
-        if (isCompleted && !completionRecordedRef.current && currentSkillContext) {
-            completionRecordedRef.current = true;
-            const pathId = loadSelectedPath();
-            const path = pathId ? getPathById(pathId) : null;
-            if (pathId) {
-                const skill = path?.skills.find(s => s.name === currentSkillContext);
-                recordMentorSession(pathId, skill?.id ?? currentSkillContext, currentSkillContext);
-                ensureConceptTracked(pathId, currentSkillContext);
-            }
+        if (!isCompleted || completionRecordedRef.current) return;
+        completionRecordedRef.current = true;
+        const pathId = loadSelectedPath();
+        if (!pathId) return;
+        const path = getPathById(pathId);
+        // Prefer the explicit skill context (from task card URL params).
+        // For free exercises, fall back to the concept the student has been practicing
+        // most recently — not perfect but ensures some tracking happens.
+        const BAD = ['Repaso', 'Práctica', 'Aprender', 'Básico', 'Intermedio', 'Avanzado'];
+        const cleanActive = getActiveSkills(pathId, 7).filter(
+            s => s.length > 3 && !BAD.some(p => s.startsWith(p))
+        );
+        const skillToRecord = currentSkillContext ?? cleanActive[0] ?? null;
+        if (skillToRecord) {
+            const skill = path?.skills.find(s => s.name === skillToRecord);
+            recordMentorSession(pathId, skill?.id ?? skillToRecord, skillToRecord);
+            ensureConceptTracked(pathId, skillToRecord);
         }
     }, [isCompleted, currentSkillContext]);
     // Open popup the first time isCompleted turns true (only when coming from a task card)

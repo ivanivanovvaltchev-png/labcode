@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LabCode — Flujo del Sistema de Aprendizaje</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #0a0a0a;
+    color: #e2e8f0;
+    line-height: 1.6;
+    padding: 48px 24px;
+  }
+  .page { max-width: 1080px; margin: 0 auto; }
+
+  /* ── Header ── */
+  .header { text-align: center; margin-bottom: 64px; }
+  .header .eyebrow {
+    display: inline-block; font-size: 11px; font-weight: 700;
+    letter-spacing: 3px; text-transform: uppercase; color: #7c3aed;
+    border: 1px solid #7c3aed44; padding: 4px 14px; border-radius: 999px; margin-bottom: 20px;
+  }
+  .header h1 {
+    font-size: 38px; font-weight: 800;
+    background: linear-gradient(135deg, #a78bfa, #38bdf8);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    margin-bottom: 14px;
+  }
+  .header .tagline { color: #64748b; font-size: 16px; max-width: 560px; margin: 0 auto; }
+
+  /* ── Section heading ── */
+  .section-label {
+    font-size: 10px; font-weight: 700; letter-spacing: 3px;
+    text-transform: uppercase; color: #334155; text-align: center;
+    margin-bottom: 28px; margin-top: 72px;
+  }
+
+  /* ── Core axiom ── */
+  .axiom-grid { display: grid; grid-template-columns: 1fr auto 1fr; gap: 0; align-items: stretch; margin-bottom: 64px; }
+  .axiom-card {
+    border-radius: 20px; padding: 32px 28px; border: 1px solid;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  .axiom-card .ax-icon { font-size: 36px; }
+  .axiom-card .ax-input {
+    font-size: 11px; font-weight: 700; letter-spacing: 2px;
+    text-transform: uppercase; margin-bottom: 4px;
+  }
+  .axiom-card h3 { font-size: 20px; font-weight: 800; }
+  .axiom-card p { font-size: 14px; color: #94a3b8; line-height: 1.7; }
+  .axiom-card .ax-result {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 12px; font-weight: 700; padding: 6px 14px;
+    border-radius: 999px; margin-top: 4px; width: fit-content;
+  }
+  .ax-pdf  { border-color: #3b82f633; background: #3b82f608; }
+  .ax-pdf .ax-input  { color: #60a5fa; }
+  .ax-pdf h3 { color: #93c5fd; }
+  .ax-pdf .ax-result { background: #3b82f620; color: #93c5fd; border: 1px solid #3b82f633; }
+  .ax-py  { border-color: #10b98133; background: #10b98108; }
+  .ax-py .ax-input   { color: #34d399; }
+  .ax-py h3 { color: #6ee7b7; }
+  .ax-py .ax-result  { background: #10b98120; color: #6ee7b7; border: 1px solid #10b98133; }
+  .axiom-center {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; padding: 0 24px; gap: 8px;
+  }
+  .axiom-center .plus { font-size: 28px; color: #334155; font-weight: 300; }
+  .axiom-center .goal {
+    background: #7c3aed20; border: 1px solid #7c3aed44; border-radius: 12px;
+    padding: 12px 16px; text-align: center;
+  }
+  .axiom-center .goal p { font-size: 12px; color: #a78bfa; font-weight: 600; }
+
+  /* ── Main flow ── */
+  .flow { display: flex; flex-direction: column; gap: 0; }
+
+  .flow-row {
+    display: grid; grid-template-columns: 180px 1fr;
+    gap: 0; position: relative;
+  }
+  .flow-rail {
+    display: flex; flex-direction: column; align-items: flex-end;
+    padding-right: 28px; padding-top: 28px; padding-bottom: 28px;
+    border-right: 2px solid #1e293b; position: relative;
+  }
+  .flow-rail::after {
+    content: ''; position: absolute; right: -6px; top: 36px;
+    width: 10px; height: 10px; border-radius: 50%; background: #7c3aed;
+  }
+  .flow-rail .step-n { font-size: 10px; font-weight: 700; color: #334155; letter-spacing: 2px; text-transform: uppercase; }
+  .flow-rail .step-name { font-size: 12px; font-weight: 700; color: #a78bfa; text-align: right; margin-top: 2px; }
+
+  .flow-body { padding: 24px 0 24px 36px; }
+
+  /* ── Box styles ── */
+  .box {
+    background: #111827; border: 1px solid #1e293b;
+    border-radius: 16px; padding: 22px 26px; margin-bottom: 10px;
+  }
+  .box:last-child { margin-bottom: 0; }
+  .box-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .box-head .bh-icon { font-size: 18px; }
+  .box-head h3 { font-size: 14px; font-weight: 700; color: #f1f5f9; }
+  .box-head .bh-tag {
+    margin-left: auto; font-size: 9px; font-weight: 700;
+    letter-spacing: 1.5px; text-transform: uppercase;
+    padding: 3px 9px; border-radius: 999px;
+  }
+
+  /* ── Code-style flow ── */
+  .code {
+    background: #0f172a; border: 1px solid #1e293b; border-radius: 12px;
+    padding: 18px 22px; font-family: 'Cascadia Code','Fira Code','JetBrains Mono',monospace;
+    font-size: 12.5px; line-height: 2; margin-top: 10px;
+  }
+  .code .ln { display: flex; align-items: baseline; gap: 10px; }
+  .code .arr { color: #7c3aed; font-size: 15px; }
+  .code .fn  { color: #38bdf8; }
+  .code .val { color: #f59e0b; }
+  .code .ok  { color: #10b981; font-weight: 700; }
+  .code .cm  { color: #475569; font-style: italic; }
+  .code .tx  { color: #cbd5e1; }
+  .code .sep { border-top: 1px dashed #1e293b; margin: 6px 0; }
+
+  /* ── Slot cards ── */
+  .slot-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 10px; }
+  .slot {
+    border-radius: 14px; padding: 18px 20px; border: 1px solid;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .slot .sl-label { font-size: 9px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; }
+  .slot .sl-title { font-size: 14px; font-weight: 700; color: #f1f5f9; }
+  .slot .sl-body  { font-size: 12px; color: #94a3b8; line-height: 1.6; }
+  .slot .sl-badge { font-size: 10px; font-weight: 700; padding: 3px 10px; border-radius: 999px; width: fit-content; margin-top: 4px; }
+
+  .s1 { border-color: #10b98133; background: #10b98108; }
+  .s1 .sl-label { color: #10b981; }
+  .s1 .sl-badge { background: #10b98120; color: #34d399; }
+  .s2 { border-color: #f59e0b33; background: #f59e0b08; }
+  .s2 .sl-label { color: #f59e0b; }
+  .s2 .sl-badge { background: #f59e0b20; color: #fbbf24; }
+  .s3 { border-color: #6366f133; background: #6366f108; }
+  .s3 .sl-label { color: #818cf8; }
+  .s3 .sl-badge { background: #6366f120; color: #818cf8; }
+
+  /* ── Card preview (3 daily cards) ── */
+  .card-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 10px; }
+  .dcard {
+    border-radius: 14px; padding: 18px 20px; border: 1px solid #1e293b;
+    background: #0f172a; display: flex; flex-direction: column; gap: 8px;
+  }
+  .dcard .dc-badge {
+    font-size: 9px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+    padding: 3px 10px; border-radius: 999px; width: fit-content;
+  }
+  .dcard .dc-title { font-size: 13px; font-weight: 700; color: #f1f5f9; }
+  .dcard .dc-body  { font-size: 11px; color: #64748b; line-height: 1.6; flex: 1; }
+  .dcard .dc-btn {
+    font-size: 11px; font-weight: 700; text-align: center;
+    background: #7c3aed; color: white; padding: 8px; border-radius: 8px; margin-top: 4px;
+  }
+
+  /* ── Progress bar ── */
+  .prog-track { margin-top: 10px; display: flex; flex-direction: column; gap: 12px; }
+  .prog-row { display: flex; align-items: center; gap: 14px; }
+  .prog-label { font-size: 12px; color: #94a3b8; width: 200px; flex-shrink: 0; }
+  .prog-wrap  { flex: 1; height: 8px; background: #1e293b; border-radius: 999px; overflow: visible; position: relative; }
+  .prog-bar   { height: 100%; border-radius: 999px; }
+  .prog-pct   { font-size: 12px; font-weight: 700; color: #f1f5f9; width: 38px; text-align: right; }
+  .prog-tag   { font-size: 9px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; width: 80px; text-align: center; flex-shrink: 0; }
+  .thr { position: absolute; top: -10px; bottom: -10px; width: 1px; background: #334155; }
+  .thr::after { content: attr(data-v); position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-size: 9px; color: #475569; font-weight: 700; }
+  .tag-s1 { background: #10b98120; color: #34d399; }
+  .tag-s2 { background: #f59e0b20; color: #fbbf24; }
+  .tag-s3 { background: #6366f120; color: #818cf8; }
+
+  /* ── Lifecycle timeline ── */
+  .timeline {
+    display: flex; align-items: stretch; background: #111827;
+    border: 1px solid #1e293b; border-radius: 20px; overflow: hidden;
+    margin-top: 10px;
+  }
+  .tl-item {
+    flex: 1; padding: 22px 18px; border-right: 1px solid #1e293b;
+    display: flex; flex-direction: column; align-items: center;
+    text-align: center; gap: 8px;
+  }
+  .tl-item:last-child { border-right: none; }
+  .tl-item .tl-icon { font-size: 26px; }
+  .tl-item .tl-title { font-size: 12px; font-weight: 700; color: #f1f5f9; }
+  .tl-item .tl-sub   { font-size: 11px; color: #64748b; line-height: 1.5; }
+  .tl-item .tl-m     { font-size: 11px; font-weight: 700; margin-top: 2px; }
+
+  /* ── Value cards ── */
+  .value-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 10px; }
+  .vcard { background: #111827; border: 1px solid #1e293b; border-radius: 16px; padding: 22px; }
+  .vcard .vc-icon { font-size: 26px; margin-bottom: 10px; }
+  .vcard h4 { font-size: 14px; font-weight: 700; color: #f1f5f9; margin-bottom: 6px; }
+  .vcard p  { font-size: 12px; color: #64748b; line-height: 1.6; }
+
+  /* ── Footer ── */
+  .footer {
+    text-align: center; margin-top: 72px; padding-top: 28px;
+    border-top: 1px solid #1e293b; color: #334155; font-size: 12px;
+  }
+
+  @media (max-width: 760px) {
+    .axiom-grid, .slot-row, .card-row, .value-grid { grid-template-columns: 1fr; }
+    .axiom-center { flex-direction: row; padding: 16px 0; }
+    .flow-row { grid-template-columns: 1fr; }
+    .flow-rail { border-right: none; border-bottom: 1px solid #1e293b; align-items: flex-start; padding: 12px 0; }
+    .flow-rail::after { display: none; }
+    .flow-body { padding: 16px 0; }
+    .timeline { flex-direction: column; }
+    .tl-item { border-right: none; border-bottom: 1px solid #1e293b; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ── HEADER ── -->
+  <div class="header">
+    <div class="eyebrow">Sistema de Aprendizaje Adaptativo</div>
+    <h1>LabCode — Cómo funciona el bucle de aprendizaje</h1>
+    <p class="tagline">El alumno sube lo que estudia y lo que practica. El sistema detecta dónde está y genera los ejercicios exactos que necesita para avanzar más rápido.</p>
+  </div>
+
+  <!-- ── AXIOMA BASE ── -->
+  <div class="section-label">La idea base · dos señales de entrada</div>
+
+  <div class="axiom-grid">
+    <div class="axiom-card ax-pdf">
+      <div class="ax-icon">📘</div>
+      <div class="ax-input">Entrada 1 — PDF de teoría</div>
+      <h3>"Estoy aprendiendo esto en clase"</h3>
+      <p>El alumno sube el PDF del tema que acaba de ver con el profesor. Es la señal de que hay contenido nuevo que aún no sabe pero necesita practicar.</p>
+      <div class="ax-result">→ El sistema introduce ese concepto como prioritario</div>
+    </div>
+
+    <div class="axiom-center">
+      <div class="plus">+</div>
+      <div class="goal">
+        <p>El sistema genera ejercicios prácticos del tema correcto a la dificultad correcta</p>
+      </div>
+    </div>
+
+    <div class="axiom-card ax-py">
+      <div class="ax-icon">🐍</div>
+      <div class="ax-input">Entrada 2 — Archivos .py / .ipynb</div>
+      <h3>"Ya lo estoy practicando"</h3>
+      <p>El alumno sube los ejercicios que ha hecho. Es la evidencia de que está trabajando el tema activamente y el sistema puede medir el progreso real.</p>
+      <div class="ax-result">→ El sistema confirma el dominio y adapta la dificultad</div>
+    </div>
+  </div>
+
+  <!-- ── FLUJO PASO A PASO ── -->
+  <div class="section-label">Flujo completo · paso a paso</div>
+
+  <div class="flow">
+
+    <!-- PASO 1 -->
+    <div class="flow-row">
+      <div class="flow-rail">
+        <span class="step-n">Paso 01</span>
+        <span class="step-name">PDF de clase subido</span>
+      </div>
+      <div class="flow-body">
+        <div class="box">
+          <div class="box-head">
+            <span class="bh-icon">📘</span>
+            <h3>El alumno sube el PDF del tema nuevo (ej. Diccionarios en Python)</h3>
+            <span class="bh-tag" style="background:#3b82f620;color:#93c5fd;border:1px solid #3b82f633">KnowledgePage</span>
+          </div>
+          <p style="font-size:13px;color:#64748b;margin-bottom:12px">El sistema extrae el texto completo del PDF y se lo pasa a la IA con instrucciones claras: <em>"El alumno ya conoce estos conceptos. Dime SOLO los nuevos que aparecen en este material."</em></p>
+          <div class="code">
+            <div class="ln"><span class="tx">Alumno sube →</span> <span class="val">"Tema6_Diccionarios.pdf"</span></div>
+            <div class="sep"></div>
+            <div class="ln"><span class="arr">↓</span> <span class="fn">extractTextFromPDF()</span> <span class="cm">— extrae texto del PDF</span></div>
+            <div class="ln"><span class="arr">↓</span> <span class="fn">analyzeConceptsFromPDF(</span><span class="val">texto</span>, <span class="val">conceptos_ya_conocidos</span><span class="fn">)</span></div>
+            <div class="ln" style="padding-left:20px"><span class="cm">IA devuelve:</span></div>
+            <div class="ln" style="padding-left:20px"><span class="ok">✓</span> <span class="val">"Diccionarios: crear con dict() y acceder por clave"</span></div>
+            <div class="ln" style="padding-left:20px"><span class="ok">✓</span> <span class="val">"Métodos: .keys(), .values(), .items()"</span></div>
+            <div class="sep"></div>
+            <div class="ln"><span class="arr">↓</span> <span class="fn">addConceptsFromPDF()</span> <span class="cm">→ mastery inicial: 0% → asignado a Slot 3</span></div>
+            <div class="ln"><span class="arr">↓</span> <span class="tx">UI:</span> <span class="ok">"🧠 2 conceptos nuevos detectados en el PDF"</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PASO 2 -->
+    <div class="flow-row">
+      <div class="flow-rail">
+        <span class="step-n">Paso 02</span>
+        <span class="step-name">Estado de los slots</span>
+      </div>
+      <div class="flow-body">
+        <div class="box">
+          <div class="box-head">
+            <span class="bh-icon">⚙️</span>
+            <h3>getDynamicSlots() clasifica todos los conceptos del alumno en tiempo real</h3>
+          </div>
+          <p style="font-size:13px;color:#64748b;margin-bottom:12px">Cada concepto tiene un <strong style="color:#f1f5f9">masteryPct</strong> que determina en qué slot vive. Los slots son el corazón del sistema — determinan el contenido de las tarjetas y el test.</p>
+          <div class="slot-row">
+            <div class="slot s1">
+              <div class="sl-label">Slot 1 — Consolidado</div>
+              <div class="sl-title">Variables · Listas · Bucles · Condicionales</div>
+              <div class="sl-body">Ya dominados. El alumno los conoce bien y solo necesita repasos espaciados para no olvidarlos.</div>
+              <div class="sl-badge">mastery ≥ 70%</div>
+            </div>
+            <div class="slot s2">
+              <div class="sl-label">Slot 2 — Practicando</div>
+              <div class="sl-title">NumPy Arrays (np.zeros, np.arange, np.sum…)</div>
+              <div class="sl-body">En la zona activa de aprendizaje. El alumno los conoce pero necesita más práctica para consolidarlos.</div>
+              <div class="sl-badge">mastery 35–69%</div>
+            </div>
+            <div class="slot s3">
+              <div class="sl-label">Slot 3 — Aprendiendo ← NUEVO</div>
+              <div class="sl-title">Diccionarios: dict() y acceso por clave</div>
+              <div class="sl-body">Recién detectado en el PDF de hoy. El alumno lo acaba de ver en clase por primera vez.</div>
+              <div class="sl-badge">mastery 0%</div>
+            </div>
+          </div>
+          <p style="font-size:12px;color:#475569;margin-top:14px;padding:10px 14px;background:#0f172a;border-radius:10px;border:1px solid #1e293b">
+            <strong style="color:#a78bfa">Regla fundamental:</strong> las tarjetas del plan diario siempre muestran el contenido de <strong style="color:#fbbf24">Slot 2</strong> y <strong style="color:#818cf8">Slot 3</strong>. El Slot 1 (ya dominado) solo aparece en el test diario para repaso espaciado.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- PASO 3 -->
+    <div class="flow-row">
+      <div class="flow-rail">
+        <span class="step-n">Paso 03</span>
+        <span class="step-name">Plan diario generado</span>
+      </div>
+      <div class="flow-body">
+        <div class="box">
+          <div class="box-head">
+            <span class="bh-icon">📋</span>
+            <h3>3 tarjetas de ejercicio · mismo tema · dificultad creciente</h3>
+            <span class="bh-tag" style="background:#7c3aed20;color:#a78bfa;border:1px solid #7c3aed33">PathDashboard</span>
+          </div>
+          <p style="font-size:13px;color:#64748b;margin-bottom:12px">El plan siempre se centra en el concepto de <strong style="color:#818cf8">Slot 3</strong> (más nuevo) o <strong style="color:#fbbf24">Slot 2</strong> (en práctica). Las 3 tarjetas son el mismo tema a 3 niveles distintos, no 3 temas distintos.</p>
+          <div class="card-row">
+            <div class="dcard">
+              <div class="dc-badge" style="background:#6366f120;color:#818cf8;border:1px solid #6366f133">🌱 Básico</div>
+              <div class="dc-title">Básico — Diccionarios</div>
+              <div class="dc-body">Crea un diccionario con 3 productos y sus precios. Accede al precio de cada uno por su nombre e imprímelo.</div>
+              <div class="dc-btn">Empezar ejercicio →</div>
+            </div>
+            <div class="dcard">
+              <div class="dc-badge" style="background:#f59e0b20;color:#fbbf24;border:1px solid #f59e0b33">💪 Intermedio</div>
+              <div class="dc-title">Intermedio — Diccionarios</div>
+              <div class="dc-body">Dado un diccionario de alumnos y notas, usa un bucle for para calcular la media y encontrar el alumno con la nota más alta.</div>
+              <div class="dc-btn">Empezar ejercicio →</div>
+            </div>
+            <div class="dcard">
+              <div class="dc-badge" style="background:#10b98120;color:#34d399;border:1px solid #10b98133">🔥 Avanzado</div>
+              <div class="dc-title">Avanzado — Diccionarios</div>
+              <div class="dc-body">Construye un sistema de inventario con un diccionario. El usuario puede añadir productos, consultar stock y eliminar entradas.</div>
+              <div class="dc-btn">Empezar ejercicio →</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="box">
+          <div class="box-head">
+            <span class="bh-icon">🧪</span>
+            <h3>Test diario · 3 preguntas alineadas con los 3 slots</h3>
+            <span class="bh-tag" style="background:#0f172a;color:#475569;border:1px solid #1e293b">DailyTestPage</span>
+          </div>
+          <div class="code">
+            <div class="ln"><span class="tx">Pregunta 1</span> <span class="cm">→ Slot 1 (consolidado) — dificultad alta — repaso espaciado</span></div>
+            <div class="ln"><span class="tx">Pregunta 2</span> <span class="cm">→ Slot 2 (practicando)  — dificultad media — refuerzo activo</span></div>
+            <div class="ln"><span class="tx">Pregunta 3</span> <span class="cm">→ Slot 3 (aprendiendo)  — dificultad básica — primer contacto teórico</span></div>
+            <div class="sep"></div>
+            <div class="ln"><span class="ok">✓ Respuesta correcta</span> <span class="arr">→</span> <span class="val">+15% mastery al concepto evaluado</span></div>
+            <div class="ln"><span class="cm">✗ Respuesta incorrecta</span> <span class="arr">→</span> <span class="val">+3% (el alumno al menos lo intentó)</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PASO 4 -->
+    <div class="flow-row">
+      <div class="flow-rail">
+        <span class="step-n">Paso 04</span>
+        <span class="step-name">El alumno sube sus .py</span>
+      </div>
+      <div class="flow-body">
+        <div class="box">
+          <div class="box-head">
+            <span class="bh-icon">🐍</span>
+            <h3>El alumno sube los ejercicios que ha hecho (evidencia de práctica real)</h3>
+            <span class="bh-tag" style="background:#10b98120;color:#34d399;border:1px solid #10b98133">KnowledgePage</span>
+          </div>
+          <p style="font-size:13px;color:#64748b;margin-bottom:12px">Cuando el alumno sube un <code style="color:#f59e0b;background:#0f172a;padding:2px 6px;border-radius:4px">.py</code> o <code style="color:#f59e0b;background:#0f172a;padding:2px 6px;border-radius:4px">.ipynb</code> con ejercicios de diccionarios (o cualquier otro tema), la IA analiza el código y detecta qué conceptos ha demostrado saber. Eso se cruza con el ConceptRegistry y actualiza el mastery real.</p>
+          <div class="code">
+            <div class="ln"><span class="tx">Alumno sube →</span> <span class="val">"ejercicio_diccionarios.py"</span></div>
+            <div class="sep"></div>
+            <div class="ln"><span class="arr">↓</span> <span class="fn">analyzeKnowledgeFromCode()</span> <span class="cm">— IA lee el código Python</span></div>
+            <div class="ln" style="padding-left:20px"><span class="ok">✓</span> <span class="cm">detecta: dict(), acceso por clave, .keys(), bucle for sobre diccionario</span></div>
+            <div class="sep"></div>
+            <div class="ln"><span class="arr">↓</span> <span class="fn">boostMasteryFromCodeAnalysis()</span> <span class="cm">— cruza con ConceptRegistry</span></div>
+            <div class="ln" style="padding-left:20px"><span class="cm">"Diccionarios: dict()" en registry → mastery</span> <span class="val">0% → 65%</span> <span class="cm">(evidencia real de código)</span></div>
+            <div class="ln" style="padding-left:20px"><span class="cm">lastPracticed = ahora → el sistema sabe que este es el tema activo</span></div>
+            <div class="sep"></div>
+            <div class="ln"><span class="arr">↓</span> <span class="tx">Resultado en el plan siguiente:</span></div>
+            <div class="ln" style="padding-left:20px"><span class="ok">✓</span> <span class="cm">mastery 65% → sigue en Slot 2 → tarjetas = Diccionarios a dificultad media/alta</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PASO 5 -->
+    <div class="flow-row">
+      <div class="flow-rail">
+        <span class="step-n">Paso 05</span>
+        <span class="step-name">Sesiones con el Mentor</span>
+      </div>
+      <div class="flow-body">
+
+        <!-- 5a: cómo funciona el Mentor -->
+        <div class="box">
+          <div class="box-head">
+            <span class="bh-icon">🤖</span>
+            <h3>El Mentor trabaja el mismo enunciado de la tarjeta · guía socráticamente</h3>
+            <span class="bh-tag" style="background:#7c3aed20;color:#a78bfa;border:1px solid #7c3aed33">MentorPage</span>
+          </div>
+          <p style="font-size:13px;color:#64748b;margin-bottom:14px">
+            Al hacer clic en "Empezar ejercicio", el Mentor recibe <strong style="color:#f1f5f9">el enunciado exacto de la tarjeta</strong> — no genera uno nuevo. Sabe que el alumno acaba de ver ese enunciado y empieza a guiarle desde ahí. Su método: preguntas que llevan al alumno a descubrir la solución por sí mismo, sin revelarla.
+          </p>
+          <div class="code">
+            <div class="ln"><span class="tx">Alumno hace clic en "Empezar ejercicio" en Tarjeta Básico — Diccionarios</span></div>
+            <div class="sep"></div>
+            <div class="ln"><span class="arr">↓</span> <span class="cm">MentorPage recibe:</span> <span class="val">taskDesc</span> <span class="cm">= enunciado completo de la tarjeta</span></div>
+            <div class="ln"><span class="arr">↓</span> <span class="cm">MentorPage recibe:</span> <span class="val">skillRef</span> <span class="cm">= "Diccionarios" (concepto a practicar)</span></div>
+            <div class="sep"></div>
+            <div class="ln"><span class="arr">↓</span> <span class="fn">callDeepSeekForMentor(enunciado, [], 'init')</span></div>
+            <div class="ln" style="padding-left:20px"><span class="cm">Mentor: "Antes de escribir nada, ¿qué estructura necesitas para guardar</span></div>
+            <div class="ln" style="padding-left:20px"><span class="cm"> pares clave-valor? ¿Qué tipo de dato sería adecuado aquí?"</span></div>
+            <div class="sep"></div>
+            <div class="ln"><span class="cm">Alumno trabaja... el Mentor guía... el alumno resuelve...</span></div>
+            <div class="sep"></div>
+            <div class="ln"><span class="arr">↓</span> <span class="cm">Mentor emite:</span> <span class="ok">[EJERCICIO_COMPLETADO]</span></div>
+            <div class="ln"><span class="arr">↓</span> <span class="fn">recordMentorSession("Diccionarios")</span> <span class="cm">→</span> <span class="val">mastery += 15%</span></div>
+            <div class="ln"><span class="arr">↓</span> <span class="fn">ensureConceptTracked("Diccionarios")</span> <span class="cm">→ concepto confirmado en el registry</span></div>
+            <div class="ln"><span class="arr">↓</span> <span class="fn">dailyMetrics.skillsWorked.push("Diccionarios")</span> <span class="cm">→ tema activo detectado</span></div>
+          </div>
+        </div>
+
+        <!-- 5b: variantes -->
+        <div class="box" style="margin-top:10px">
+          <div class="box-head">
+            <span class="bh-icon">🔄</span>
+            <h3>Pedir variantes · más práctica del mismo concepto · más mastery</h3>
+          </div>
+          <p style="font-size:13px;color:#64748b;margin-bottom:14px">
+            Tras completar el ejercicio, el alumno puede pedir una <strong style="color:#f1f5f9">variante</strong>: el mismo concepto con un escenario completamente distinto. Cada variante completada registra otra sesión de práctica. Es la forma más rápida de acumular mastery en un concepto concreto.
+          </p>
+          <div class="code">
+            <div class="ln"><span class="tx">Alumno hace clic en "Pedir variante"</span></div>
+            <div class="sep"></div>
+            <div class="ln"><span class="arr">↓</span> <span class="fn">callDeepSeekForMentorVariant(ejercicioOriginal)</span></div>
+            <div class="ln" style="padding-left:20px"><span class="cm">IA genera: mismo concepto (diccionarios), escenario distinto (p.ej. biblioteca)</span></div>
+            <div class="ln"><span class="arr">↓</span> <span class="fn">recordMentorSession("Diccionarios")</span> <span class="cm">→</span> <span class="val">mastery += 15%</span> <span class="cm">(se registra al pedir la variante)</span></div>
+            <div class="sep"></div>
+            <div class="ln"><span class="cm">Ejemplo acumulación de mastery para "Diccionarios":</span></div>
+            <div class="ln" style="padding-left:20px"><span class="cm">PDF subido          →</span> <span class="val"> 0%</span></div>
+            <div class="ln" style="padding-left:20px"><span class="cm">.py subido          →</span> <span class="val">65%</span> <span class="cm">(boost por código real)</span></div>
+            <div class="ln" style="padding-left:20px"><span class="cm">Ejercicio básico    →</span> <span class="val">80%</span> <span class="cm">(+15%)</span> <span class="ok">→ SLOT 1</span></div>
+            <div class="sep"></div>
+            <div class="ln"><span class="cm">Sin subir .py (solo Mentor):</span></div>
+            <div class="ln" style="padding-left:20px"><span class="cm">Ejercicio básico    →</span> <span class="val">15%</span></div>
+            <div class="ln" style="padding-left:20px"><span class="cm">Variante 1         →</span> <span class="val">30%</span></div>
+            <div class="ln" style="padding-left:20px"><span class="cm">Variante 2         →</span> <span class="val">45%</span> <span class="cm">→ Slot 2</span></div>
+            <div class="ln" style="padding-left:20px"><span class="cm">Variante 3 + test  →</span> <span class="val">60%</span></div>
+            <div class="ln" style="padding-left:20px"><span class="cm">Ejercicio intermedio→</span> <span class="val">75%</span> <span class="ok">→ SLOT 1</span></div>
+          </div>
+        </div>
+
+        <!-- 5c: progreso y cuándo cambian las tarjetas -->
+        <div class="box" style="margin-top:10px">
+          <div class="box-head">
+            <span class="bh-icon">📊</span>
+            <h3>Cuándo y cómo cambian las tarjetas del plan</h3>
+          </div>
+          <p style="font-size:13px;color:#64748b;margin-bottom:14px">
+            El mastery se actualiza inmediatamente en cada sesión. Las tarjetas del plan <strong style="color:#f1f5f9">se regeneran cuando el alumno pulsa "Nuevo plan"</strong> o al día siguiente si ya las ha completado todas. En ese momento, el sistema recalcula los slots con el mastery actualizado y genera tarjetas nuevas.
+          </p>
+          <div class="prog-track">
+            <div class="prog-row">
+              <div class="prog-label" style="font-size:12px">PDF subido (concepto nuevo)</div>
+              <div class="prog-wrap">
+                <div class="prog-bar" style="width:0%;background:#6366f1"></div>
+                <div class="thr" style="left:35%" data-v="35%"></div>
+                <div class="thr" style="left:70%" data-v="70%"></div>
+              </div>
+              <div class="prog-pct">0%</div>
+              <div class="prog-tag tag-s3">Slot 3</div>
+            </div>
+            <div class="prog-row">
+              <div class="prog-label" style="font-size:12px">.py subido con ejercicios</div>
+              <div class="prog-wrap">
+                <div class="prog-bar" style="width:65%;background:linear-gradient(90deg,#6366f1,#f59e0b)"></div>
+                <div class="thr" style="left:35%" data-v="35%"></div>
+                <div class="thr" style="left:70%" data-v="70%"></div>
+              </div>
+              <div class="prog-pct">65%</div>
+              <div class="prog-tag tag-s2">Slot 2 ↑</div>
+            </div>
+            <div class="prog-row">
+              <div class="prog-label" style="font-size:12px">+1 sesión Mentor (ejercicio básico)</div>
+              <div class="prog-wrap">
+                <div class="prog-bar" style="width:80%;background:linear-gradient(90deg,#f59e0b,#10b981)"></div>
+                <div class="thr" style="left:35%" data-v="35%"></div>
+                <div class="thr" style="left:70%" data-v="70%"></div>
+              </div>
+              <div class="prog-pct">80%</div>
+              <div class="prog-tag tag-s1">Slot 1 ↑</div>
+            </div>
+            <div class="prog-row">
+              <div class="prog-label" style="font-size:12px">Solo Mentor · 5 sesiones/variantes</div>
+              <div class="prog-wrap">
+                <div class="prog-bar" style="width:75%;background:linear-gradient(90deg,#f59e0b,#10b981)"></div>
+                <div class="thr" style="left:35%" data-v="35%"></div>
+                <div class="thr" style="left:70%" data-v="70%"></div>
+              </div>
+              <div class="prog-pct">75%</div>
+              <div class="prog-tag tag-s1">Slot 1 ↑</div>
+            </div>
+          </div>
+          <p style="font-size:12px;color:#334155;margin-top:14px;padding:10px 14px;background:#0f172a;border-radius:10px;border:1px solid #1e293b">
+            <strong style="color:#a78bfa">Regla:</strong> cuando un concepto supera el 70% → pasa a Slot 1 → las tarjetas del día siguiente se enfocan en el <em>siguiente</em> concepto de Slot 2 o Slot 3. El sistema avanza solo.
+          </p>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- PASO 6 -->
+    <div class="flow-row">
+      <div class="flow-rail">
+        <span class="step-n">Paso 06</span>
+        <span class="step-name">El sistema avanza</span>
+      </div>
+      <div class="flow-body">
+        <div class="box">
+          <div class="box-head">
+            <span class="bh-icon">🔁</span>
+            <h3>Diccionarios pasa a Slot 1 · el sistema busca el próximo concepto en Slot 2/3</h3>
+          </div>
+          <div class="code">
+            <div class="ln"><span class="tx">Diccionarios:</span> <span class="val">mastery 72%</span> <span class="ok">→ cruza 70% → SLOT 1</span></div>
+            <div class="sep"></div>
+            <div class="ln"><span class="arr">↓</span> <span class="cm">getDynamicSlots() recalcula</span></div>
+            <div class="ln"><span class="ok">Slot 1:</span> <span class="tx">Variables · Listas · Bucles · Condicionales · Diccionarios (nuevo)</span></div>
+            <div class="ln"><span class="val">Slot 2:</span> <span class="tx">NumPy Arrays (50%) ← ahora es el foco del plan diario</span></div>
+            <div class="ln"><span class="cm">Slot 3:</span> <span class="tx">Métodos de diccionario: .keys(), .values() ← si quedaban sin practicar</span></div>
+            <div class="sep"></div>
+            <div class="ln"><span class="arr">↓</span> <span class="tx">Nuevas tarjetas del plan:</span></div>
+            <div class="ln" style="padding-left:20px"><span class="ok">Básico — NumPy Arrays</span></div>
+            <div class="ln" style="padding-left:20px"><span class="ok">Intermedio — NumPy Arrays</span></div>
+            <div class="ln" style="padding-left:20px"><span class="ok">Avanzado — NumPy Arrays</span></div>
+            <div class="sep"></div>
+            <div class="ln"><span class="cm">Y cuando el alumno suba el PDF del próximo tema de clase →</span></div>
+            <div class="ln"><span class="cm">el ciclo empieza de nuevo desde Slot 3.</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end .flow -->
+
+
+  <!-- ── CICLO DE VIDA VISUAL ── -->
+  <div class="section-label">Ciclo de vida completo de un concepto</div>
+
+  <div class="timeline">
+    <div class="tl-item">
+      <div class="tl-icon">📚</div>
+      <div class="tl-title">Clase del Máster</div>
+      <div class="tl-sub">Profesor imparte el tema nuevo</div>
+    </div>
+    <div class="tl-item" style="background:#3b82f608">
+      <div class="tl-icon">📘</div>
+      <div class="tl-title">PDF subido</div>
+      <div class="tl-sub">IA detecta conceptos nuevos</div>
+      <div class="tl-m" style="color:#818cf8">→ Slot 3 · 0%</div>
+    </div>
+    <div class="tl-item" style="background:#6366f108">
+      <div class="tl-icon">🌱</div>
+      <div class="tl-title">Tarjetas Básico</div>
+      <div class="tl-sub">Ejercicios de introducción guiada con el Mentor</div>
+      <div class="tl-m" style="color:#818cf8">0–34%</div>
+    </div>
+    <div class="tl-item" style="background:#10b98106">
+      <div class="tl-icon">🐍</div>
+      <div class="tl-title">.py subidos</div>
+      <div class="tl-sub">Evidencia de práctica real · boost de mastery</div>
+      <div class="tl-m" style="color:#fbbf24">→ Slot 2 · 65%</div>
+    </div>
+    <div class="tl-item" style="background:#f59e0b08">
+      <div class="tl-icon">💪</div>
+      <div class="tl-title">Tarjetas Intermedio/Avanzado</div>
+      <div class="tl-sub">Práctica deliberada · variantes del Mentor</div>
+      <div class="tl-m" style="color:#fbbf24">35–69%</div>
+    </div>
+    <div class="tl-item" style="background:#10b98108">
+      <div class="tl-icon">🏆</div>
+      <div class="tl-title">Slot 1 · Consolidado</div>
+      <div class="tl-sub">Repaso espaciado · siguiente concepto toma el relevo</div>
+      <div class="tl-m" style="color:#34d399">≥ 70%</div>
+    </div>
+  </div>
+
+
+  <!-- ── VALOR DEL SISTEMA ── -->
+  <div class="section-label">Por qué este bucle acelera el aprendizaje</div>
+
+  <div class="value-grid">
+    <div class="vcard">
+      <div class="vc-icon">🎯</div>
+      <h4>El sistema siempre sabe dónde está el alumno</h4>
+      <p>PDF = nueva señal de lo que se está aprendiendo. .py = señal de lo que se está practicando. Juntos determinan el tema y la dificultad exactos que el alumno necesita hoy.</p>
+    </div>
+    <div class="vcard">
+      <div class="vc-icon">🔒</div>
+      <h4>La IA nunca sale del perímetro pedagógico</h4>
+      <p>Los ejercicios generados solo pueden usar conceptos que están en el registry del alumno. Si no ha visto funciones def/return, la IA no puede mencionarlas, aunque el modelo las conozca.</p>
+    </div>
+    <div class="vcard">
+      <div class="vc-icon">📈</div>
+      <h4>El progreso es continuo y automático</h4>
+      <p>Cada acción del alumno (completar ejercicio, subir .py, responder el test) actualiza el mastery en tiempo real. El plan del día siguiente ya refleja ese progreso sin intervención manual.</p>
+    </div>
+  </div>
+
+  <div class="footer">
+    <strong style="color:#475569">LabCode</strong> · Motor de Aprendizaje Adaptativo<br>
+    <span style="color:#1e293b;margin-top:6px;display:block">Conceptualizado por Iván Ivanov Valtchev · Desarrollado por Claude Code (Anthropic)</span>
+  </div>
+
+</div>
+</body>
+</html>
