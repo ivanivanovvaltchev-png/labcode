@@ -153,11 +153,34 @@ async function deepSeekJSON<T>(systemPrompt: string, userPrompt: string, tempera
     throw new Error(lastError);
 }
 
-// Hard guard for diagnostic questions — same pattern as questionPassesGuard for MCQ tests.
-// If a forbidden concept appears anywhere in the question text, it is discarded.
+// Guard for diagnostic questions.
+// Uses a tighter Python-syntax-only blocklist instead of CONCEPTOS_PROHIBIDOS,
+// which includes Spanish words like "función"/"funciones" that appear legitimately
+// in question prose and cause nearly all generated questions to be rejected.
+const DIAGNOSTIC_SYNTAX_BLOCKLIST = [
+    'def ',    // Python function definition
+    '(self',   // method signature
+    'class ',  // class definition
+    'lambda ', // lambda expression
+    'try:',    // exception block
+    'except',
+    'raise ',
+    'open(',   // file I/O
+    'with open',
+    '__init__',
+    'self.',
+    'dict(',
+    '.keys()',
+    '.values()',
+    '.items()',
+    'tuple(',
+    '.split(',
+    'return ', // explicit return keyword in code context
+];
+
 function diagnosticQuestionPassesGuard(q: DiagnosticQuestion): boolean {
     const text = [q.question, q.hint ?? '', q.skillRef].join(' ').toLowerCase();
-    return !CONCEPTOS_PROHIBIDOS.some(term => text.includes(term.toLowerCase()));
+    return !DIAGNOSTIC_SYNTAX_BLOCKLIST.some(term => text.includes(term));
 }
 
 export async function generateDiagnosticExam(
