@@ -6,7 +6,7 @@ import { getPathById, getAvailableSkills } from '../../data/careerPaths';
 import { loadKnowledgeProfile } from '../../lib/knowledgeProfile';
 import { getHabilidadesValidadas, loadMetrics, getActiveSkills } from '../../lib/learningMetrics';
 import { seedConceptRegistry } from '../../lib/masteryEngine';
-import { generateDailyTest } from '../../ai/diagnosticAgent';
+import { generateDailyTest, MOOD_QUESTION_COUNT } from '../../ai/diagnosticAgent';
 import {
     TestQuestion, DailyCheckin, TestSession, EisenhowerMatrix,
     getTodayTest, saveTodayTest, todayStr, getRecentFailedSkills,
@@ -65,7 +65,7 @@ const DailyTestPage: React.FC = () => {
             const habilidades = getHabilidadesValidadas(path, concepts, selfAssessments);
             const recentFailed = getRecentFailedSkills(7);
             const activeSkills = pathId ? getActiveSkills(pathId) : [];
-            const qs = await generateDailyTest(path, available, recentFailed, habilidades, activeSkills, pathId);
+            const qs = await generateDailyTest(path, available, recentFailed, habilidades, activeSkills, pathId, checkin.mood);
             setQuestions(qs);
             setStep('questions');
         } catch (err) {
@@ -152,7 +152,9 @@ const DailyTestPage: React.FC = () => {
                                 </button>
                             ))}
                         </div>
-                        <p className="text-xs text-light/30 text-center mt-2">{MOOD_LABELS[checkin.mood]}</p>
+                        <p className="text-xs text-light/30 text-center mt-2">
+                            {MOOD_LABELS[checkin.mood]} · <span className="text-violet-400 font-semibold">{MOOD_QUESTION_COUNT[checkin.mood]} pregunta{MOOD_QUESTION_COUNT[checkin.mood] !== 1 ? 's' : ''}</span>
+                        </p>
                     </div>
 
                     <div>

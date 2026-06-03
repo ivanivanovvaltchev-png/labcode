@@ -459,8 +459,31 @@ INSTRUCCIONES:
 
 // ─── Daily Mini-Test Generator ────────────────────────────────────────────────
 
-// Hard shield — any question containing a forbidden concept is silently
-// discarded and the API is retried. Source of truth: studentProfile.ts.
+// Guard for daily test questions.
+// Same philosophy as DIAGNOSTIC_SYNTAX_BLOCKLIST: reject on Python syntax tokens
+// only, NOT on Spanish narrative words. CONCEPTOS_PROHIBIDOS includes words like
+// "función"/"funciones" that appear legitimately in question prose and cause most
+// generated questions to be silently discarded, leaving only 1 out of 3+.
+const DAILY_TEST_SYNTAX_BLOCKLIST = [
+    'def ',
+    '(self',
+    'class ',
+    'lambda ',
+    'try:',
+    'except',
+    'raise ',
+    'open(',
+    'with open',
+    '__init__',
+    'self.',
+    'dict(',
+    '.keys()',
+    '.values()',
+    '.items()',
+    'tuple(',
+    '.split(',
+];
+
 function questionPassesGuard(q: TestQuestion): boolean {
     const text = [
         q.question,
@@ -468,10 +491,18 @@ function questionPassesGuard(q: TestQuestion): boolean {
         q.options.B,
         q.options.C,
         q.explanation ?? '',
-        q.skillRef ?? '',
     ].join(' ').toLowerCase();
-    return !CONCEPTOS_PROHIBIDOS.some(term => text.includes(term.toLowerCase()));
+    return !DAILY_TEST_SYNTAX_BLOCKLIST.some(term => text.includes(term));
 }
+
+/** Maps mood (1–5) to target question count for the daily test. */
+export const MOOD_QUESTION_COUNT: Record<number, number> = {
+    1: 1,
+    2: 2,
+    3: 5,
+    4: 8,
+    5: 10,
+};
 
 /**
  * Generates 3–5 multiple-choice theory questions for the daily Active Recall test.
@@ -486,93 +517,99 @@ export async function generateDailyTest(
     _recentFailedSkills: string[],
     _habilidadesValidadas: string[],
     activeSkills: string[] = [],
-    pathId: string = ''
+    pathId: string = '',
+    mood: number = 3
 ): Promise<TestQuestion[]> {
     const pathContext = buildPathContext(path);
     const knowledgeBlock = buildKnowledgeBlock();
+    const targetCount = MOOD_QUESTION_COUNT[mood] ?? 5;
 
-    // ── Dynamic slot computation ─────────────────────────────────────────────
+    // ── Slot topics ───────────────────────────────────────────────────────────
     const slots = pathId ? getSlotConceptsForPrompt(pathId) : null;
+    const s1 = slots?.slot1.slice(0, 3).join(' / ') || 'Bucles for/while y Listas';
+    const s2 = slots?.slot2.slice(0, 2).join(' / ') || 'Condicionales if/elif/else';
+    const s3 = slots?.slot3[0] || 'NumPy Arrays';
 
-    let slotsBlock: string;
+    // ── Question distribution across slots ────────────────────────────────────
+    // Slot 3 (new concept): max 2, ~20% of total
+    // Slot 1 (review):      ~40% of remaining
+    // Slot 2 (practice):    rest
+    const n3 = Math.min(2, Math.max(0, Math.floor(targetCount * 0.2)));
+    const n1 = Math.ceil((targetCount - n3) / 2);
+    const n2 = targetCount - n1 - n3;
 
-    if (slots) {
-        // Dynamic: test questions reflect the student's real progression
-        const s1Str = slots.slot1.length > 0
-            ? slots.slot1.slice(0, 3).join(' / ')
-            : 'Bucles for/while y Listas';
-        const s2Str = slots.slot2.length > 0
-            ? slots.slot2.slice(0, 2).join(' / ')
-            : 'Condicionales if/elif/else';
-        const s3Str = slots.slot3.length > 0
-            ? slots.slot3[0]
-            : 'NumPy Arrays — introducción';
+    // Build the per-question instruction list
+    const questionLines: string[] = [];
+    let qNum = 1;
 
-        slotsBlock = `PREGUNTA 1 — REPASO (conceptos consolidados — mastery ≥ 70%)
-Tema: ${s1Str}
-Instrucción: Pregunta de opción múltiple sobre uno de estos conceptos consolidados. Elige el más interesante para repasar hoy. Sin funciones def ni return.
-
-PREGUNTA 2 — PRÁCTICA (conceptos en refuerzo — mastery 35–69%)
-Tema: ${s2Str}
-Instrucción: Pregunta de opción múltiple sobre uno de estos conceptos que el alumno está practicando activamente. Sin funciones def ni return.
-
-PREGUNTA 3 — CONCEPTO NUEVO (recién introducido — mastery < 35%)
-Tema: ${s3Str}
-Instrucción: Pregunta de opción múltiple sobre este concepto nuevo. Puede ser más básica — el alumno lo está viendo por primera vez. Sin funciones def ni return.`;
-    } else {
-        // Static fallback
-        slotsBlock = TEST_SLOTS.map(s =>
-            `PREGUNTA ${s.slot} — Tema: ${s.tema}\nInstrucción: ${s.instruccion}`
-        ).join('\n\n');
+    for (let i = 0; i < n1; i++, qNum++) {
+        questionLines.push(
+            `PREGUNTA ${qNum} — REPASO (Slot 1 · mastery ≥ 70%)\n` +
+            `Tema: ${s1}\n` +
+            `Escenario ${i + 1} de ${n1}: varía el contexto (precios, temperaturas, notas, edades, colores…). Sin def ni return.`
+        );
+    }
+    for (let i = 0; i < n2; i++, qNum++) {
+        questionLines.push(
+            `PREGUNTA ${qNum} — PRÁCTICA (Slot 2 · mastery 35–69%)\n` +
+            `Tema: ${s2}\n` +
+            `Escenario ${i + 1} de ${n2}: varía el contexto. Sin def ni return.`
+        );
+    }
+    for (let i = 0; i < n3; i++, qNum++) {
+        questionLines.push(
+            `PREGUNTA ${qNum} — CONCEPTO NUEVO (Slot 3 · mastery < 35%)\n` +
+            `Tema: ${s3}\n` +
+            `Nivel básico — el alumno lo está aprendiendo. Sin def ni return.`
+        );
     }
 
-    const activeFocus = activeSkills.length > 0 && !slots
-        ? `\nHABILIDADES EN FOCO (sesga las preguntas hacia estas cuando sea compatible con los slots):\n${activeSkills.map(s => `• ${s}`).join('\n')}\n`
-        : '';
+    const slotsBlock = questionLines.join('\n\n');
 
-    const systemPrompt = `Eres un evaluador de teoría de Python. Generas exactamente 3 preguntas de opción múltiple (A, B, C).
+    const systemPrompt = `Eres un evaluador de teoría de Python. Devuelves ÚNICAMENTE un JSON array de preguntas de opción múltiple (A, B, C). Sin texto extra ni markdown.
 
 ${pathContext}
 
 ${knowledgeBlock}
-${activeFocus}
-ESTRUCTURA OBLIGATORIA — genera EXACTAMENTE estas 3 preguntas en este orden:
+
+GENERA EXACTAMENTE ${targetCount} PREGUNTAS en este orden:
 
 ${slotsBlock}
 
-FORMATO — devuelve ÚNICAMENTE este JSON array, sin texto extra ni markdown:
-[
-  {
-    "id": "q1",
-    "question": "Pregunta teórica clara\nnumeros = [3, 1, 4]\nnumeros.sort()\nprint(numeros[0])",
-    "options": { "A": "opción A", "B": "opción B", "C": "opción C" },
-    "correctAnswer": "A",
-    "explanation": "Por qué esa es la correcta",
-    "skillRef": "tema evaluado"
-  }
-]
+FORMATO de cada pregunta:
+{
+  "id": "q1",
+  "question": "Texto de la pregunta. Si incluye código, ponlo en líneas separadas con \\n después del texto.",
+  "options": { "A": "opción A", "B": "opción B", "C": "opción C" },
+  "correctAnswer": "A",
+  "explanation": "Por qué esa es la correcta (1-2 frases)",
+  "skillRef": "concepto evaluado"
+}
 
 REGLAS:
-- Las preguntas evalúan TEORÍA pura (¿qué hace?, ¿cuál es el resultado?, ¿qué error da?).
-- Cuando la pregunta incluya código Python, usa SALTOS DE LÍNEA REALES (\\n en JSON) para formatear cada sentencia en su propia línea. El código va después de la pregunta separado por \\n.
-- Las opciones incorrectas deben ser errores comunes plausibles, no tonterías obvias.
-- PROHIBIDO ABSOLUTO: def, return, SQL, Git, pseudocódigo, .split(), excepciones, ORM — a menos que aparezcan en el material teórico de arriba como conceptos a evaluar.`;
+- Evalúa TEORÍA pura: ¿qué imprime?, ¿cuál es el resultado?, ¿qué error produce?
+- Código Python en la pregunta: cada línea en su propia línea (\\n en el JSON)
+- Opciones incorrectas: errores comunes plausibles, no respuestas absurdas
+- PROHIBIDO en el JSON: def , class , try:, except, tuple(, .split(, dict(, self., lambda
+- Cada pregunta debe tener un escenario y valores DISTINTOS a las demás`;
 
     const today = new Date().toISOString().split('T')[0];
-    const userPrompt = `Fecha de hoy: ${today}. Usa escenarios, valores y contextos COMPLETAMENTE DISTINTOS a los de días anteriores. Varía los números, las listas de ejemplo y el dominio (temperaturas, notas, precios, edades, puntuaciones, colores, frutas, inventarios…). Genera las 3 preguntas siguiendo la estructura del system prompt. Una por slot. Devuelve solo el JSON.`;
+    const userPrompt = `Fecha: ${today}. Semilla: ${Math.random().toString(36).slice(2, 8)}. Genera las ${targetCount} preguntas. Varía dominios (temperaturas, notas, precios, edades, inventarios, colores, frutas…). Devuelve SOLO el JSON array.`;
 
     const raw = await deepSeekJSON<TestQuestion[]>(systemPrompt, userPrompt, 0.85);
 
-    // Tag each question with the concept from its slot so mastery tracking works
-    const tagged = raw.map((q, idx) => {
-        if (!slots) return q;
-        const slotRefs = [
-            slots.slot1[0] ?? 'Repaso consolidado',
-            slots.slot2[0] ?? 'Práctica activa',
-            slots.slot3[0] ?? 'Concepto nuevo',
-        ];
-        return { ...q, skillRef: slotRefs[idx] ?? q.skillRef };
-    });
+    // Tag slot refs for mastery tracking
+    const slotRefs = [
+        ...Array(n1).fill(slots?.slot1[0] ?? 'Repaso consolidado'),
+        ...Array(n2).fill(slots?.slot2[0] ?? 'Práctica activa'),
+        ...Array(n3).fill(slots?.slot3[0] ?? 'Concepto nuevo'),
+    ];
 
-    return tagged.filter(questionPassesGuard).slice(0, 3);
+    const tagged = raw.map((q, idx) => ({
+        ...q,
+        id: `q${idx + 1}`,
+        skillRef: slotRefs[idx] ?? q.skillRef,
+    }));
+
+    return tagged.filter(questionPassesGuard).slice(0, targetCount);
 }
