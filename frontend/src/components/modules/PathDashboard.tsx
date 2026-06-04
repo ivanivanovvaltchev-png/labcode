@@ -181,7 +181,7 @@ const PathDashboard: React.FC = () => {
             navigate(`/mentor?resumeTaskId=${taskId}`);
             return;
         }
-        const difficulty = taskId ? (cardDifficulties[taskId] ?? 'facil') : 'facil';
+        const difficulty = taskId ? (cardDifficulties[taskId] ?? 'dificil') : 'dificil';
         const taskDesc = difficulty === 'dificil' ? (task.descriptionDificil ?? task.description)
             : difficulty === 'medio' ? (task.descriptionMedio ?? task.description)
             : task.description;
@@ -355,7 +355,7 @@ const PathDashboard: React.FC = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
                         {dailyPlan.tasks.map((task, idx) => {
                             const hasActiveSession = activeMentorTaskId === task.id && !task.completed;
-                            const difficulty = cardDifficulties[task.id] ?? 'facil';
+                            const difficulty = cardDifficulties[task.id] ?? 'dificil';
                             const previewDesc = difficulty === 'dificil' ? (task.descriptionDificil ?? task.description)
                                 : difficulty === 'medio' ? (task.descriptionMedio ?? task.description)
                                 : task.description;

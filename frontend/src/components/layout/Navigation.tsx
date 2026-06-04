@@ -125,10 +125,10 @@ const Navigation: React.FC<NavigationProps> = ({ user = 'Estudiante', userId }) 
                             <div className="w-16 h-1.5 bg-light/10 rounded-full overflow-hidden hidden md:block" title={`${curriculumPct}% del camino completado`}>
                                 <div
                                     className={`h-full rounded-full transition-all duration-700 ${col?.bar ?? 'bg-accent'}`}
-                                    style={{ width: `${levelPct}%` }}
+                                    style={{ width: `${curriculumPct}%` }}
                                 />
                             </div>
-                            <span className="text-xs font-mono text-accent" title={`${curriculumPct}% curriculum → ${xp} / ${MAX_XP} XP`}>
+                            <span className="text-xs font-mono text-accent whitespace-nowrap" title={`${curriculumPct}% curriculum → ${xp} / ${MAX_XP} XP`}>
                                 {xp.toLocaleString()} XP
                             </span>
                         </div>
