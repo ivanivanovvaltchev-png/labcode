@@ -141,24 +141,25 @@ const DailyTestPage: React.FC = () => {
                                 <button
                                     key={n}
                                     onClick={() => setCheckin(c => ({ ...c, mood: n }))}
-                                    className={`flex-1 py-3 rounded-xl text-sm font-semibold border transition-all ${
+                                    className={`flex-1 py-3 rounded-xl text-sm font-semibold border transition-all flex flex-col items-center gap-0.5 ${
                                         checkin.mood === n
                                             ? 'border-violet-500 bg-violet-600/20 text-white'
                                             : 'border-light/10 text-light/40 hover:border-light/30'
                                     }`}
                                 >
-                                    {MOOD_LABELS[n].split(' ')[0]}<br />
+                                    <span>{MOOD_LABELS[n].split(' ')[0]}</span>
                                     <span className="text-xs font-normal">{n}</span>
+                                    <span className={`text-[10px] font-bold mt-0.5 ${checkin.mood === n ? 'text-violet-300' : 'text-light/20'}`}>
+                                        {MOOD_QUESTION_COUNT[n]}P
+                                    </span>
                                 </button>
                             ))}
                         </div>
-                        <div className="flex items-center justify-center gap-2 mt-2">
-                            <p className="text-xs text-light/30">{MOOD_LABELS[checkin.mood]}</p>
-                            <span className="text-xs text-light/20">·</span>
-                            <span className="text-xs font-bold text-violet-400 bg-violet-900/30 border border-violet-500/30 px-2 py-0.5 rounded-full">
-                                {MOOD_QUESTION_COUNT[checkin.mood]} pregunta{MOOD_QUESTION_COUNT[checkin.mood] !== 1 ? 's' : ''}
-                            </span>
-                        </div>
+                        <p className="text-xs text-light/40 text-center mt-2">
+                            {MOOD_LABELS[checkin.mood]}
+                            {' · '}
+                            <strong className="text-violet-400">{MOOD_QUESTION_COUNT[checkin.mood]} pregunta{MOOD_QUESTION_COUNT[checkin.mood] !== 1 ? 's' : ''}</strong>
+                        </p>
                     </div>
 
                     <div>

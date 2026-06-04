@@ -464,18 +464,23 @@ INSTRUCCIONES:
 // only, NOT on Spanish narrative words. CONCEPTOS_PROHIBIDOS includes words like
 // "función"/"funciones" that appear legitimately in question prose and cause most
 // generated questions to be silently discarded, leaving only 1 out of 3+.
+// IMPORTANT: only use tokens that are unambiguous Python syntax.
+// 'except' (without colon) was matching the Spanish word "excepto" and
+// discarding every question that used it naturally in prose. Always use
+// the colon form 'except:' or with a trailing space 'except '.
 const DAILY_TEST_SYNTAX_BLOCKLIST = [
-    'def ',
-    '(self',
-    'class ',
-    'lambda ',
-    'try:',
-    'except',
-    'raise ',
-    'open(',
+    'def ',       // function definition — always has space after keyword
+    '(self,',     // method parameter — tighter than '(self' to avoid false positives
+    'class ',     // class definition
+    'lambda ',    // lambda expression
+    'try:',       // try block — colon is mandatory in Python
+    'except:',    // bare except — must have colon
+    'except ',    // except with type — has space before exception type
+    'raise ',     // raise statement
+    'open(',      // file I/O
     'with open',
     '__init__',
-    'self.',
+    'self.',      // self.attribute — period avoids Spanish word collisions
     'dict(',
     '.keys()',
     '.values()',
