@@ -47,8 +47,7 @@ const Navigation: React.FC<NavigationProps> = ({ user = 'Estudiante', userId }) 
 
     const xp = Math.round(curriculumPct * (MAX_XP / 100));  // 0–10 000
     const level = Math.min(10, Math.floor(xp / XP_PER_LEVEL) + 1);
-    const levelProgress = xp % XP_PER_LEVEL;
-    const levelPct = Math.round((levelProgress / XP_PER_LEVEL) * 100);
+
 
     const col = selectedPathId ? (pathColor[selectedPathId] ?? pathColor['fullstack-dev']) : null;
 
