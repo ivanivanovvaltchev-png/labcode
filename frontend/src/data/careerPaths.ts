@@ -409,14 +409,37 @@ export function isSkillMastered(
     );
 }
 
+/**
+ * Calculates curriculum progress.
+ * A skill counts as mastered if:
+ *   a) code analysis detects it in the student's .py files (profileConcepts), OR
+ *   b) the student self-assessed it, OR
+ *   c) the student practiced it enough in exercises (skillMastery ≥ 70%).
+ *
+ * The optional skillMastery map connects the exercise mastery engine to the
+ * curriculum progress bar so completing cards actually advances the percentage.
+ */
 export function calculateProgress(
     path: CareerPath,
     profileConcepts: string[],
-    selfAssessments: Record<string, boolean>
+    selfAssessments: Record<string, boolean>,
+    skillMastery?: Record<string, { masteryPct: number; skillName?: string }>
 ): { pct: number; mastered: number; total: number; criticalMastered: number; criticalTotal: number } {
+    const isEffectivelyMastered = (skill: PathSkill): boolean => {
+        if (isSkillMastered(skill, profileConcepts, selfAssessments)) return true;
+        if (!skillMastery) return false;
+        // Match by skillId, skillName, or by skill.name as a key
+        const byId   = skillMastery[skill.id];
+        const byName = skillMastery[skill.name];
+        // Also search values where skillName matches the path skill name
+        const byValue = Object.values(skillMastery).find(m => m.skillName === skill.name);
+        const masteryPct = byId?.masteryPct ?? byName?.masteryPct ?? byValue?.masteryPct ?? 0;
+        return masteryPct >= 70;
+    };
+
     const critical = path.skills.filter(s => s.importance === 'critical');
-    const criticalMastered = critical.filter(s => isSkillMastered(s, profileConcepts, selfAssessments)).length;
-    const allMastered = path.skills.filter(s => isSkillMastered(s, profileConcepts, selfAssessments)).length;
+    const criticalMastered = critical.filter(s => isEffectivelyMastered(s)).length;
+    const allMastered = path.skills.filter(s => isEffectivelyMastered(s)).length;
     const pct = critical.length > 0 ? Math.round((criticalMastered / critical.length) * 100) : 0;
     return { pct, mastered: allMastered, total: path.skills.length, criticalMastered, criticalTotal: critical.length };
 }

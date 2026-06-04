@@ -13,7 +13,9 @@ export interface DailyTask {
     id: string;
     type: 'learn' | 'practice' | 'review';
     title: string;
-    description: string;
+    description: string;          // Fácil: step-by-step with hints
+    descriptionMedio?: string;    // Medio: scenario only, no function names
+    descriptionDificil?: string;  // Difícil: objective only, no context
     skillRef: string;
     completed: boolean;
 }

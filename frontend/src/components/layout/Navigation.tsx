@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { loadSelectedPath } from '../../lib/selectedPath';
-import { CAREER_PATHS } from '../../data/careerPaths';
+import { loadSelectedPath, loadSelfAssessments } from '../../lib/selectedPath';
+import { CAREER_PATHS, calculateProgress } from '../../data/careerPaths';
+import { loadKnowledgeProfile } from '../../lib/knowledgeProfile';
+import { loadMetrics } from '../../lib/learningMetrics';
 import { supabase } from '../../lib/supabaseClient';
 import { pushToCloud, clearLocalData } from '../../lib/cloudSync';
 
@@ -16,15 +18,38 @@ const pathColor: Record<string, { cls: string; bar: string }> = {
     'fullstack-dev': { cls: 'text-violet-400 bg-violet-900/20 border-violet-500/40', bar: 'bg-violet-400' },
 };
 
-const Navigation: React.FC<NavigationProps> = ({ user = 'Estudiante', xp = 0, userId }) => {
+// XP scale: 0 XP = 0% curriculum, 10 000 XP = 100% curriculum.
+// Each level = 1 000 XP = 10% of the curriculum completed.
+const MAX_XP = 10_000;
+const XP_PER_LEVEL = 1_000;
+
+const Navigation: React.FC<NavigationProps> = ({ user = 'Estudiante', userId }) => {
     const navigate = useNavigate();
     const [signingOut, setSigningOut] = useState(false);
-    const level = Math.floor(xp / 300) + 1;
-    const levelProgress = xp % 300;
-    const levelPct = Math.round((levelProgress / 300) * 100);
 
+    // Compute real curriculum progress for XP display
     const selectedPathId = loadSelectedPath();
     const activePath = selectedPathId ? CAREER_PATHS.find(p => p.id === selectedPathId) : null;
+
+    let curriculumPct = 0;
+    if (activePath && selectedPathId) {
+        const profile = loadKnowledgeProfile();
+        const selfAssessments = loadSelfAssessments(selectedPathId);
+        const metrics = loadMetrics(selectedPathId);
+        const { pct } = calculateProgress(
+            activePath,
+            profile?.concepts ?? [],
+            selfAssessments,
+            metrics.skillMastery
+        );
+        curriculumPct = pct;
+    }
+
+    const xp = Math.round(curriculumPct * (MAX_XP / 100));  // 0–10 000
+    const level = Math.min(10, Math.floor(xp / XP_PER_LEVEL) + 1);
+    const levelProgress = xp % XP_PER_LEVEL;
+    const levelPct = Math.round((levelProgress / XP_PER_LEVEL) * 100);
+
     const col = selectedPathId ? (pathColor[selectedPathId] ?? pathColor['fullstack-dev']) : null;
 
     const handleSignOut = async () => {
@@ -97,13 +122,15 @@ const Navigation: React.FC<NavigationProps> = ({ user = 'Estudiante', xp = 0, us
                             <span className="text-xs text-light/40 hidden md:inline">Lvl {level}</span>
                         </div>
                         <div className="flex items-center gap-1.5">
-                            <div className="w-16 h-1.5 bg-light/10 rounded-full overflow-hidden hidden md:block">
+                            <div className="w-16 h-1.5 bg-light/10 rounded-full overflow-hidden hidden md:block" title={`${curriculumPct}% del camino completado`}>
                                 <div
-                                    className={`h-full rounded-full transition-all duration-500 ${col?.bar ?? 'bg-accent'}`}
+                                    className={`h-full rounded-full transition-all duration-700 ${col?.bar ?? 'bg-accent'}`}
                                     style={{ width: `${levelPct}%` }}
                                 />
                             </div>
-                            <span className="text-xs font-mono text-accent">{xp} XP</span>
+                            <span className="text-xs font-mono text-accent" title={`${curriculumPct}% curriculum → ${xp} / ${MAX_XP} XP`}>
+                                {xp.toLocaleString()} XP
+                            </span>
                         </div>
                     </div>
 

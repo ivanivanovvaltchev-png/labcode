@@ -5,7 +5,7 @@ import { loadSelectedPath, loadSelfAssessments, saveSelfAssessments } from '../.
 import { loadKnowledgeProfile } from '../../lib/knowledgeProfile';
 import { isOnboardingComplete, getDiagnosticResult, getDailyPlan, completeTask, todayString, saveDailyPlan, saveMasterFeedback } from '../../lib/userProgress';
 import { generateDailyPlan, generateMasterFeedback } from '../../ai/diagnosticAgent';
-import { recordPractice, getHabilidadesValidadas, getActiveSkills } from '../../lib/learningMetrics';
+import { recordPractice, getHabilidadesValidadas, getActiveSkills, loadMetrics } from '../../lib/learningMetrics';
 import { seedConceptRegistry } from '../../lib/masteryEngine';
 import { getActiveMentorTaskId } from './MentorPage';
 import { getTodayTest } from '../../lib/dailyTest';
@@ -49,6 +49,7 @@ const PathDashboard: React.FC = () => {
     const [planError, setPlanError] = useState<string | null>(null);
     const [isGeneratingFeedback, setIsGeneratingFeedback] = useState(false);
     const [showSkillsDetail, setShowSkillsDetail] = useState(false);
+    const [cardDifficulties, setCardDifficulties] = useState<Record<string, 'facil' | 'medio' | 'dificil'>>({});
 
     const pathId = loadSelectedPath();
     const path = pathId ? getPathById(pathId) : null;
@@ -124,7 +125,8 @@ const PathDashboard: React.FC = () => {
     }
 
     const diagResult = pathId ? getDiagnosticResult(pathId) : null;
-    const { pct, mastered, total, criticalMastered, criticalTotal } = calculateProgress(path, profileConcepts, assessments);
+    const metrics = pathId ? loadMetrics(pathId) : null;
+    const { pct, mastered, total, criticalMastered, criticalTotal } = calculateProgress(path, profileConcepts, assessments, metrics?.skillMastery);
     const col = pathColors[path.id] ?? pathColors['fullstack-dev'];
 
     const masteredSkills = path.skills.filter(s => isSkillMastered(s, profileConcepts, assessments));
@@ -173,13 +175,17 @@ const PathDashboard: React.FC = () => {
         setDailyPlan(getDailyPlan(pathId));
     };
 
-    const goToMentor = (taskTitle: string, taskDesc: string, skillRef: string, taskId?: string, taskIndex?: number) => {
-        // If there's an active session for this exact task → restore it
+    const goToMentor = (task: { title: string; description: string; descriptionMedio?: string; descriptionDificil?: string; skillRef: string; id?: string }, taskIndex?: number) => {
+        const taskId = task.id;
         if (taskId && getActiveMentorTaskId() === taskId) {
             navigate(`/mentor?resumeTaskId=${taskId}`);
             return;
         }
-        const params = new URLSearchParams({ taskTitle, taskDesc, skillRef });
+        const difficulty = taskId ? (cardDifficulties[taskId] ?? 'facil') : 'facil';
+        const taskDesc = difficulty === 'dificil' ? (task.descriptionDificil ?? task.description)
+            : difficulty === 'medio' ? (task.descriptionMedio ?? task.description)
+            : task.description;
+        const params = new URLSearchParams({ taskTitle: task.title, taskDesc, skillRef: task.skillRef });
         if (taskId) params.set('taskId', taskId);
         if (taskIndex !== undefined) params.set('taskIndex', String(taskIndex));
         if (dailyPlan) params.set('totalTasks', String(dailyPlan.tasks.length));
@@ -349,6 +355,10 @@ const PathDashboard: React.FC = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
                         {dailyPlan.tasks.map((task, idx) => {
                             const hasActiveSession = activeMentorTaskId === task.id && !task.completed;
+                            const difficulty = cardDifficulties[task.id] ?? 'facil';
+                            const previewDesc = difficulty === 'dificil' ? (task.descriptionDificil ?? task.description)
+                                : difficulty === 'medio' ? (task.descriptionMedio ?? task.description)
+                                : task.description;
                             return (
                             <div
                                 key={task.id}
@@ -370,16 +380,36 @@ const PathDashboard: React.FC = () => {
 
                                 <div className="flex-1">
                                     <p className="text-base font-bold text-light mb-2">{task.title}</p>
-                                    <p className="text-sm text-light/50 leading-relaxed">{task.description}</p>
+                                    <p className="text-sm text-light/50 leading-relaxed">{previewDesc}</p>
                                 </div>
 
                                 <div className="flex flex-col gap-2 pt-2 border-t border-light/10">
                                     {task.completed ? (
-                                        <div className="text-center text-sm text-emerald-400 font-semibold py-1">✅ Completado · +30 XP</div>
+                                        <div className="text-center text-sm text-emerald-400 font-semibold py-1">✅ Completado</div>
                                     ) : (
                                         <>
+                                            {/* Difficulty selector */}
+                                            {!hasActiveSession && (
+                                                <div className="flex gap-1.5">
+                                                    {(['facil', 'medio', 'dificil'] as const).map(d => (
+                                                        <button
+                                                            key={d}
+                                                            onClick={() => setCardDifficulties(prev => ({ ...prev, [task.id]: d }))}
+                                                            className={`flex-1 text-xs py-1.5 rounded-lg font-bold transition-all border ${
+                                                                difficulty === d
+                                                                    ? d === 'facil'   ? 'bg-emerald-600/30 text-emerald-300 border-emerald-500/50'
+                                                                    : d === 'medio'   ? 'bg-amber-600/30 text-amber-300 border-amber-500/50'
+                                                                    :                   'bg-red-600/30 text-red-300 border-red-500/50'
+                                                                    : 'border-light/10 text-light/25 hover:text-light/50'
+                                                            }`}
+                                                        >
+                                                            {d === 'facil' ? '🟢 Fácil' : d === 'medio' ? '🟡 Medio' : '🔴 Difícil'}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
                                             <button
-                                                onClick={() => goToMentor(task.title, task.description, task.skillRef, task.id, idx)}
+                                                onClick={() => goToMentor(task, idx)}
                                                 className={`w-full text-white font-bold py-3 rounded-xl text-sm transition-all ${hasActiveSession ? 'bg-violet-700 hover:bg-violet-600 ring-1 ring-violet-400/50' : 'bg-violet-600 hover:bg-violet-500'}`}
                                             >
                                                 {hasActiveSession ? '↩ Continuar ejercicio' : 'Empezar ejercicio →'}
@@ -409,7 +439,7 @@ const PathDashboard: React.FC = () => {
                         <p className="text-sm text-light/40 mt-0.5">{nextCritical.description}</p>
                     </div>
                     <button
-                        onClick={() => goToMentor(nextCritical.name, nextCritical.description, nextCritical.name)}
+                        onClick={() => goToMentor({ title: nextCritical.name, description: nextCritical.description, skillRef: nextCritical.name })}
                         className="bg-violet-600 hover:bg-violet-500 text-white font-bold text-sm px-5 py-3 rounded-xl transition-all flex-shrink-0"
                     >
                         Practicar →
@@ -482,7 +512,7 @@ const PathDashboard: React.FC = () => {
                                                     </label>
                                                 )}
                                                 <button
-                                                    onClick={() => goToMentor(s.name, s.description, s.name)}
+                                                    onClick={() => goToMentor({ title: s.name, description: s.description, skillRef: s.name })}
                                                     className="text-sm text-violet-400/60 hover:text-violet-400 transition-colors whitespace-nowrap"
                                                 >
                                                     Practicar →

@@ -36,6 +36,8 @@ export interface DailyTaskRaw {
     type: 'learn' | 'practice' | 'review';
     title: string;
     description: string;
+    descriptionMedio?: string;
+    descriptionDificil?: string;
     skillRef: string;
 }
 
@@ -401,14 +403,27 @@ ${knowledgeBlock}
 
 CUALQUIER concepto que no aparezca en el material de arriba (funciones def/return, diccionarios, tuplas, clases, SQL, Git, pseudocódigo, excepciones, ORM) está TERMINANTEMENTE PROHIBIDO.
 
-FORMATO — devuelve exactamente este JSON array sin texto extra:
+FORMATO — devuelve exactamente este JSON array sin texto extra. Cada tarjeta tiene TRES versiones del enunciado:
 [
-  {"type": "review",   "title": "...", "description": "ENUNCIADO COMPLETO aquí. Mínimo 4 frases con pasos claros.", "skillRef": "..."},
-  {"type": "practice", "title": "...", "description": "ENUNCIADO COMPLETO aquí. Mínimo 4 frases con pasos claros.", "skillRef": "..."},
-  {"type": "learn",    "title": "...", "description": "ENUNCIADO COMPLETO aquí. Mínimo 4 frases con pasos claros.", "skillRef": "..."}
+  {
+    "type": "review",
+    "title": "...",
+    "description": "VERSIÓN FÁCIL: enunciado completo con pasos numerados, nombres de funciones a usar y ejemplo de datos. El alumno sabe exactamente qué hacer y con qué herramientas.",
+    "descriptionMedio": "VERSIÓN MEDIA: solo el problema y el objetivo. Sin pasos, sin mencionar las funciones concretas. El alumno debe saber qué herramientas usar por sí mismo.",
+    "descriptionDificil": "VERSIÓN DIFÍCIL: máximo 2 frases. Solo el objetivo final. Sin contexto, sin pistas.",
+    "skillRef": "..."
+  }
 ]
 
-CRÍTICO — description: escribe el enunciado COMPLETO tal como se lo darías al alumno. Con contexto, pasos numerados y ejemplo si aplica. Este texto aparece en la tarjeta Y es lo que el Mentor usará para guiar al alumno — deben ser idénticos.
+REGLAS PARA LAS 3 VERSIONES:
+- description (Fácil): explica paso a paso, dice las funciones a usar (np.arange, .copy, etc.), pone ejemplos de datos
+- descriptionMedio (Medio): describe el escenario y lo que se quiere conseguir, NUNCA menciona qué función usar, no da pasos
+- descriptionDificil (Difícil): una o dos frases que solo dicen el objetivo. Sin escenario, sin función, sin pistas
+
+EJEMPLO:
+  description: "Crea un array con np.arange(1, 10, 2). Paso 1: usa np.arange(). Paso 2: haz una copia con .copy(). Paso 3: imprime ambos."
+  descriptionMedio: "Tienes una secuencia de números impares del 1 al 9. Necesitas duplicarla de forma que ambas versiones sean independientes entre sí. Demuéstralo modificando una."
+  descriptionDificil: "Crea un array y una copia independiente. Demuestra que son independientes."
 
 ${card1Block}
 
@@ -416,7 +431,7 @@ ${card2Block}
 
 ${card3Block}`;
 
-    const userPrompt = `Genera las 3 tarjetas con escenarios DISTINTOS entre sí (distintos datos, contextos y escenarios). Semilla: ${Math.random().toString(36).slice(2, 8)}. Devuelve solo el JSON array.`;
+    const userPrompt = `Genera las 3 tarjetas con escenarios DISTINTOS. Semilla: ${Math.random().toString(36).slice(2, 8)}. Devuelve SOLO el JSON array con los 3 campos de descripción por tarjeta.`;
 
     const result = await deepSeekJSON<DailyTaskRaw[]>(systemPrompt, userPrompt);
 
