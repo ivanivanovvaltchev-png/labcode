@@ -152,9 +152,13 @@ const DailyTestPage: React.FC = () => {
                                 </button>
                             ))}
                         </div>
-                        <p className="text-xs text-light/30 text-center mt-2">
-                            {MOOD_LABELS[checkin.mood]} · <span className="text-violet-400 font-semibold">{MOOD_QUESTION_COUNT[checkin.mood]} pregunta{MOOD_QUESTION_COUNT[checkin.mood] !== 1 ? 's' : ''}</span>
-                        </p>
+                        <div className="flex items-center justify-center gap-2 mt-2">
+                            <p className="text-xs text-light/30">{MOOD_LABELS[checkin.mood]}</p>
+                            <span className="text-xs text-light/20">·</span>
+                            <span className="text-xs font-bold text-violet-400 bg-violet-900/30 border border-violet-500/30 px-2 py-0.5 rounded-full">
+                                {MOOD_QUESTION_COUNT[checkin.mood]} pregunta{MOOD_QUESTION_COUNT[checkin.mood] !== 1 ? 's' : ''}
+                            </span>
+                        </div>
                     </div>
 
                     <div>

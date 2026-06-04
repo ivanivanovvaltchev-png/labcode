@@ -113,7 +113,7 @@ async function fetchDeepSeek(body: object, apiKey: string): Promise<Response> {
     ]);
 }
 
-async function deepSeekJSON<T>(systemPrompt: string, userPrompt: string, temperature = 0.3): Promise<T> {
+async function deepSeekJSON<T>(systemPrompt: string, userPrompt: string, temperature = 0.3, maxTokens = 2000): Promise<T> {
     const apiKey = import.meta.env.VITE_DEEPSEEK_API_KEY;
     if (!apiKey) throw new Error('No API Key');
 
@@ -124,7 +124,7 @@ async function deepSeekJSON<T>(systemPrompt: string, userPrompt: string, tempera
             { role: 'user', content: userPrompt },
         ],
         temperature,
-        max_tokens: 2000,
+        max_tokens: maxTokens,
     };
 
     let lastError = '';
@@ -596,7 +596,9 @@ REGLAS:
     const today = new Date().toISOString().split('T')[0];
     const userPrompt = `Fecha: ${today}. Semilla: ${Math.random().toString(36).slice(2, 8)}. Genera las ${targetCount} preguntas. Varía dominios (temperaturas, notas, precios, edades, inventarios, colores, frutas…). Devuelve SOLO el JSON array.`;
 
-    const raw = await deepSeekJSON<TestQuestion[]>(systemPrompt, userPrompt, 0.85);
+    // Each question needs ~400 tokens of output. Add 400 overhead for JSON structure.
+    const neededTokens = Math.max(2000, targetCount * 400 + 400);
+    const raw = await deepSeekJSON<TestQuestion[]>(systemPrompt, userPrompt, 0.85, neededTokens);
 
     // Tag slot refs for mastery tracking
     const slotRefs = [
