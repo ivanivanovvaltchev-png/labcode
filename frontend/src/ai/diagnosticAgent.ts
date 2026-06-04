@@ -3,8 +3,6 @@ import { TestQuestion } from '../lib/dailyTest';
 import type { DailyTask } from '../lib/userProgress';
 import {
     HABILIDADES_PERMITIDAS,
-    CONCEPTOS_PROHIBIDOS,
-    TEST_SLOTS,
 } from './studentProfile';
 import { getContextForPrompt } from '../lib/theoryContext';
 import { getSlotConceptsForPrompt } from '../lib/masteryEngine';
@@ -521,7 +519,7 @@ export async function generateDailyTest(
     _availableSkills: PathSkill[],
     _recentFailedSkills: string[],
     _habilidadesValidadas: string[],
-    activeSkills: string[] = [],
+    _activeSkills: string[] = [],
     pathId: string = '',
     mood: number = 3
 ): Promise<TestQuestion[]> {
