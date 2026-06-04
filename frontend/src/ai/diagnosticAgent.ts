@@ -569,35 +569,58 @@ export async function generateDailyTest(
 
     const slotsBlock = questionLines.join('\n\n');
 
-    const systemPrompt = `Eres un evaluador de teoría de Python. Devuelves ÚNICAMENTE un JSON array de preguntas de opción múltiple (A, B, C). Sin texto extra ni markdown.
+    const systemPrompt = `Eres un evaluador de programación Python. Devuelves ÚNICAMENTE un JSON array de preguntas de opción múltiple (A, B, C). Sin texto extra ni markdown.
 
 ${pathContext}
 
 ${knowledgeBlock}
 
+═══ REGLA ABSOLUTA — LEE ANTES DE GENERAR ═══
+CADA pregunta DEBE mostrar un bloque de código Python real y preguntar qué hace ese código.
+Tipos válidos:
+  • "¿Qué imprime este código?" → muestra 3-6 líneas de Python → opciones son los posibles outputs
+  • "¿Qué valor tiene X después de ejecutar esto?" → muestra código → opciones son valores concretos
+  • "¿Qué hace esta instrucción?" → muestra UNA línea de Python → opciones explican su efecto
+
+PROHIBIDO ABSOLUTAMENTE:
+  • Preguntas de matemáticas sin código (promedios, sumas, productos de listas de números)
+  • Enunciados de inventario, temperatura, frutas, notas SIN código Python
+  • Problemas de lógica que no muestren sintaxis Python real
+  • "¿Cuántas unidades quedan...?" "¿Cuál es el promedio de...?" sin código
+  • def , class , try:, except:, except , tuple(, .split(, dict(, self., lambda
+
+EJEMPLO CORRECTO:
+{
+  "question": "¿Qué imprime este código?\\nnumeros = [3, 1, 4, 1, 5]\\nnumeros.sort()\\nprint(numeros[0])",
+  "options": { "A": "1", "B": "3", "C": "5" },
+  "correctAnswer": "A",
+  "explanation": "sort() ordena de menor a mayor. numeros[0] es el primer elemento: 1."
+}
+
+EJEMPLO INCORRECTO (PROHIBIDO):
+{
+  "question": "Una lista de temperaturas es [22, 25, 19]. ¿Cuál es la media?",
+  "options": { "A": "22.0", "B": "21.0", "C": "25.0" }
+}
+
 GENERA EXACTAMENTE ${targetCount} PREGUNTAS en este orden:
 
 ${slotsBlock}
 
-FORMATO de cada pregunta:
+FORMATO:
 {
   "id": "q1",
-  "question": "Texto de la pregunta. Si incluye código, ponlo en líneas separadas con \\n después del texto.",
-  "options": { "A": "opción A", "B": "opción B", "C": "opción C" },
+  "question": "¿Qué imprime/devuelve/hace este código?\\nlinea1\\nlinea2\\nlinea3",
+  "options": { "A": "valor o efecto A", "B": "valor o efecto B", "C": "valor o efecto C" },
   "correctAnswer": "A",
-  "explanation": "Por qué esa es la correcta (1-2 frases)",
+  "explanation": "Explicación breve de por qué (1-2 frases)",
   "skillRef": "concepto evaluado"
 }
 
-REGLAS:
-- Evalúa TEORÍA pura: ¿qué imprime?, ¿cuál es el resultado?, ¿qué error produce?
-- Código Python en la pregunta: cada línea en su propia línea (\\n en el JSON)
-- Opciones incorrectas: errores comunes plausibles, no respuestas absurdas
-- PROHIBIDO en el JSON: def , class , try:, except, tuple(, .split(, dict(, self., lambda
-- Cada pregunta debe tener un escenario y valores DISTINTOS a las demás`;
+Varía los valores y nombres de variables entre preguntas. Usa listas pequeñas (3-5 elementos) con números sencillos para que el alumno pueda trazar el código mentalmente.`;
 
     const today = new Date().toISOString().split('T')[0];
-    const userPrompt = `Fecha: ${today}. Semilla: ${Math.random().toString(36).slice(2, 8)}. Genera las ${targetCount} preguntas. Varía dominios (temperaturas, notas, precios, edades, inventarios, colores, frutas…). Devuelve SOLO el JSON array.`;
+    const userPrompt = `Fecha: ${today}. Semilla: ${Math.random().toString(36).slice(2, 8)}. Genera las ${targetCount} preguntas. TODAS deben mostrar código Python. Devuelve SOLO el JSON array.`;
 
     // Each question needs ~400 tokens of output. Add 400 overhead for JSON structure.
     const neededTokens = Math.max(2000, targetCount * 400 + 400);
