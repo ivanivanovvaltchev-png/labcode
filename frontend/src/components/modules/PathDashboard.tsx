@@ -189,6 +189,10 @@ const PathDashboard: React.FC = () => {
         if (taskId) params.set('taskId', taskId);
         if (taskIndex !== undefined) params.set('taskIndex', String(taskIndex));
         if (dailyPlan) params.set('totalTasks', String(dailyPlan.tasks.length));
+        params.set('taskDifficulty', difficulty);
+        params.set('taskDescFacil', task.description);
+        if (task.descriptionMedio) params.set('taskDescMedio', task.descriptionMedio);
+        if (task.descriptionDificil) params.set('taskDescDificil', task.descriptionDificil);
         navigate(`/mentor?${params.toString()}`);
     };
 

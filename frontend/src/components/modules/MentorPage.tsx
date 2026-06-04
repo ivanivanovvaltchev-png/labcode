@@ -72,6 +72,10 @@ const MentorPage: React.FC = () => {
     const paramTaskIndex      = searchParams.get('taskIndex');
     const paramTotalTasks     = searchParams.get('totalTasks');
     const paramResumeTaskId   = searchParams.get('resumeTaskId');   // restore existing session
+    const paramTaskDifficulty = searchParams.get('taskDifficulty') as 'facil' | 'medio' | 'dificil' | null;
+    const paramTaskDescFacil  = searchParams.get('taskDescFacil');
+    const paramTaskDescMedio  = searchParams.get('taskDescMedio');
+    const paramTaskDescDificil = searchParams.get('taskDescDificil');
     const hasSkillContext = !!(paramTaskTitle || paramSkillRef);
     const taskIndex   = paramTaskIndex  !== null ? parseInt(paramTaskIndex)  : null;
     const totalTasks  = paramTotalTasks !== null ? parseInt(paramTotalTasks) : null;
@@ -90,6 +94,12 @@ const MentorPage: React.FC = () => {
     const [manuallyCompleted, setManuallyCompleted] = useState(false);
     const [currentSkillContext, setCurrentSkillContext] = useState<string | null>(null);
     const [exercisePanelOpen, setExercisePanelOpen] = useState(false);
+    const [mentorDifficulty, setMentorDifficulty] = useState<'facil' | 'medio' | 'dificil'>(paramTaskDifficulty ?? 'dificil');
+    const [taskDescs] = useState<{ facil: string; medio: string | null; dificil: string | null }>({
+        facil: paramTaskDescFacil ?? '',
+        medio: paramTaskDescMedio ?? null,
+        dificil: paramTaskDescDificil ?? null,
+    });
     const [showCompletionPopup, setShowCompletionPopup] = useState(false);
     // Saved before URL params are cleared so the popup still has them at completion time
     const [savedTaskId, setSavedTaskId] = useState<string | null>(null);
@@ -345,6 +355,30 @@ const MentorPage: React.FC = () => {
         setCurrentSkillContext(null);
     };
 
+    const handleDifficultyChange = async (d: 'facil' | 'medio' | 'dificil') => {
+        if (d === mentorDifficulty) return;
+        const newDesc = d === 'dificil' ? (taskDescs.dificil ?? taskDescs.facil)
+            : d === 'medio' ? (taskDescs.medio ?? taskDescs.facil)
+            : taskDescs.facil;
+        if (!newDesc) return;
+        if (messages.length > 0 && !isCompleted) {
+            if (!window.confirm('¿Seguro? Cambiar dificultad reiniciará el ejercicio.')) return;
+        }
+        clearActiveSession();
+        setMentorDifficulty(d);
+        setMessages([]);
+        setInput('');
+        setSavedSession(null);
+        setVariantOrigin(null);
+        setManuallyCompleted(false);
+        setExercise(newDesc);
+        setExerciseSubmitted(true);
+        setIsLoading(true);
+        const resp = await callDeepSeekForMentor(newDesc, [], 'init', getKnowledgeBlock());
+        setMessages([{ role: 'assistant', content: resp }]);
+        setIsLoading(false);
+    };
+
     return (
         <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
 
@@ -527,8 +561,27 @@ const MentorPage: React.FC = () => {
                         </button>
                         {exercisePanelOpen && (
                             <div className="bg-[#1a1a1a] border border-violet-500/20 border-t-0 rounded-b-2xl px-5 pb-4">
+                                {taskDescs.facil && (
+                                    <div className="flex items-center gap-2 pt-3 pb-2">
+                                        {(['facil', 'medio', 'dificil'] as const).map(d => {
+                                            const available = d === 'facil' ? !!taskDescs.facil : d === 'medio' ? !!taskDescs.medio : !!taskDescs.dificil;
+                                            if (!available) return null;
+                                            const isActive = mentorDifficulty === d;
+                                            const label = d === 'facil' ? '🟢 Fácil' : d === 'medio' ? '🟡 Medio' : '🔴 Difícil';
+                                            return (
+                                                <button
+                                                    key={d}
+                                                    onClick={() => handleDifficultyChange(d)}
+                                                    className={`text-xs px-3 py-1 rounded-full border transition-colors ${isActive ? (d === 'dificil' ? 'bg-red-900/40 border-red-500/60 text-red-300' : d === 'medio' ? 'bg-yellow-900/30 border-yellow-500/50 text-yellow-300' : 'bg-green-900/30 border-green-500/50 text-green-300') : 'border-light/10 text-light/30 hover:text-light/60'}`}
+                                                >
+                                                    {label}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                                 {exercise ? (
-                                    <p className="text-sm text-light/70 leading-relaxed whitespace-pre-wrap font-mono pt-3">{exercise}</p>
+                                    <p className="text-sm text-light/70 leading-relaxed whitespace-pre-wrap font-mono pt-1">{exercise}</p>
                                 ) : (
                                     <div className="flex items-center gap-2 text-light/30 text-sm pt-3">
                                         <LoadingDots /> <span>Generando…</span>
