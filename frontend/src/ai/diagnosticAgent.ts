@@ -133,13 +133,14 @@ async function deepSeekJSON<T>(systemPrompt: string, userPrompt: string, tempera
         if (response.ok) {
             const data = await response.json();
             const raw = data.choices?.[0]?.message?.content ?? '{}';
-            const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-            try { return JSON.parse(cleaned) as T; }
-            catch {
-                const match = cleaned.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
-                if (match) return JSON.parse(match[0]) as T;
-                throw new Error('Respuesta de IA no parseable como JSON');
-            }
+            const stripped = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+            // Extract the outermost JSON object/array, then sanitize and parse
+            const extracted = stripped.match(/(\[[\s\S]*\]|\{[\s\S]*\})/)?.[0] ?? stripped;
+            const sanitized = extracted
+                .replace(/'([^'\n]+)'(\s*:)/g, '"$1"$2')  // single-quoted property names → double-quoted
+                .replace(/,(\s*[}\]])/g, '$1');             // trailing commas
+            try { return JSON.parse(sanitized) as T; }
+            catch { throw new Error('Respuesta de IA no parseable como JSON'); }
         }
         const bodyText = await response.text().catch(() => '');
         lastError = `API ${response.status}: ${bodyText.slice(0, 200)}`;
