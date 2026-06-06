@@ -113,6 +113,17 @@ async function fetchDeepSeek(body: object, apiKey: string): Promise<Response> {
     ]);
 }
 
+function sanitizeLLMJson(raw: string): string {
+    let s = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const extracted = s.match(/(\[[\s\S]*\]|\{[\s\S]*\})/)?.[0] ?? s;
+    return extracted
+        .replace(/\bTrue\b/g, 'true')
+        .replace(/\bFalse\b/g, 'false')
+        .replace(/\bNone\b/g, 'null')
+        .replace(/'([^'\\]*(?:\\.[^'\\]*)*)'(\s*:)/g, '"$1"$2')  // single-quoted keys
+        .replace(/,(\s*[}\]])/g, '$1');                            // trailing commas
+}
+
 async function deepSeekJSON<T>(systemPrompt: string, userPrompt: string, temperature = 0.3, maxTokens = 2000): Promise<T> {
     const apiKey = import.meta.env.VITE_DEEPSEEK_API_KEY;
     if (!apiKey) throw new Error('No API Key');
@@ -125,6 +136,7 @@ async function deepSeekJSON<T>(systemPrompt: string, userPrompt: string, tempera
         ],
         temperature,
         max_tokens: maxTokens,
+        response_format: { type: 'json_object' },
     };
 
     let lastError = '';
@@ -133,18 +145,21 @@ async function deepSeekJSON<T>(systemPrompt: string, userPrompt: string, tempera
         if (response.ok) {
             const data = await response.json();
             const raw = data.choices?.[0]?.message?.content ?? '{}';
-            const stripped = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-            // Extract the outermost JSON object/array, then sanitize and parse
-            const extracted = stripped.match(/(\[[\s\S]*\]|\{[\s\S]*\})/)?.[0] ?? stripped;
-            const sanitized = extracted
-                .replace(/'([^'\n]+)'(\s*:)/g, '"$1"$2')  // single-quoted property names → double-quoted
-                .replace(/,(\s*[}\]])/g, '$1');             // trailing commas
-            try { return JSON.parse(sanitized) as T; }
-            catch { throw new Error('Respuesta de IA no parseable como JSON'); }
+            const sanitized = sanitizeLLMJson(raw);
+            try {
+                const parsed = JSON.parse(sanitized);
+                // Unwrap {"questions":[...]} or {"items":[...]} or similar single-key array wrappers
+                if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                    const keys = Object.keys(parsed);
+                    if (keys.length === 1 && Array.isArray(parsed[keys[0]])) {
+                        return parsed[keys[0]] as T;
+                    }
+                }
+                return parsed as T;
+            } catch { throw new Error('Respuesta de IA no parseable como JSON'); }
         }
         const bodyText = await response.text().catch(() => '');
         lastError = `API ${response.status}: ${bodyText.slice(0, 200)}`;
-        // Retry only on transient server errors
         if ((response.status === 503 || response.status === 429) && attempt < RETRY_DELAYS.length) {
             await new Promise(r => setTimeout(r, RETRY_DELAYS[attempt]));
             continue;
@@ -203,15 +218,17 @@ ${knowledgeBlock}
 
 PROHIBICIÓN TOTAL E IRREVOCABLE: queda absolutamente prohibido incluir en cualquier pregunta los conceptos: def, return, funciones, parámetros, argumentos, SQL, Git, pseudocódigo, diccionarios, tuplas, clases, lambda, excepciones. Si un concepto no aparece textualmente en el material de arriba, NO PUEDE aparecer en ningún ejercicio.
 
-FORMATO DE RESPUESTA: Solo JSON válido, sin texto adicional, sin markdown.
-[
-  {
-    "id": "q1",
-    "question": "enunciado del ejercicio práctico",
-    "hint": "pista opcional si el estudiante no sabe por dónde empezar",
-    "skillRef": "concepto que evalúa"
-  }
-]`;
+FORMATO DE RESPUESTA: Solo JSON válido con clave "questions", sin texto adicional, sin markdown.
+{
+  "questions": [
+    {
+      "id": "q1",
+      "question": "enunciado del ejercicio práctico",
+      "hint": "pista opcional si el estudiante no sabe por dónde empezar",
+      "skillRef": "concepto que evalúa"
+    }
+  ]
+}`;
 
     const userPrompt = `Camino: ${path.title} (objetivo: ${path.jobTitle})
 ${knownConcepts}
@@ -404,17 +421,19 @@ ${knowledgeBlock}
 
 CUALQUIER concepto que no aparezca en el material de arriba (funciones def/return, diccionarios, tuplas, clases, SQL, Git, pseudocódigo, excepciones, ORM) está TERMINANTEMENTE PROHIBIDO.
 
-FORMATO — devuelve exactamente este JSON array sin texto extra. Cada tarjeta tiene TRES versiones del enunciado:
-[
-  {
-    "type": "review",
-    "title": "...",
-    "description": "VERSIÓN FÁCIL: enunciado completo con pasos numerados, nombres de funciones a usar y ejemplo de datos. El alumno sabe exactamente qué hacer y con qué herramientas.",
-    "descriptionMedio": "VERSIÓN MEDIA: solo el problema y el objetivo. Sin pasos, sin mencionar las funciones concretas. El alumno debe saber qué herramientas usar por sí mismo.",
-    "descriptionDificil": "VERSIÓN DIFÍCIL: máximo 2 frases. Solo el objetivo final. Sin contexto, sin pistas.",
-    "skillRef": "..."
-  }
-]
+FORMATO — devuelve exactamente este JSON object con clave "tasks" sin texto extra. Cada tarjeta tiene TRES versiones del enunciado:
+{
+  "tasks": [
+    {
+      "type": "review",
+      "title": "...",
+      "description": "VERSIÓN FÁCIL: enunciado completo con pasos numerados, nombres de funciones a usar y ejemplo de datos. El alumno sabe exactamente qué hacer y con qué herramientas.",
+      "descriptionMedio": "VERSIÓN MEDIA: solo el problema y el objetivo. Sin pasos, sin mencionar las funciones concretas. El alumno debe saber qué herramientas usar por sí mismo.",
+      "descriptionDificil": "VERSIÓN DIFÍCIL: máximo 2 frases. Solo el objetivo final. Sin contexto, sin pistas.",
+      "skillRef": "..."
+    }
+  ]
+}
 
 REGLAS PARA LAS 3 VERSIONES:
 - description (Fácil): explica paso a paso, dice las funciones a usar (np.arange, .copy, etc.), pone ejemplos de datos
@@ -432,7 +451,7 @@ ${card2Block}
 
 ${card3Block}`;
 
-    const userPrompt = `Genera las 3 tarjetas con escenarios DISTINTOS. Semilla: ${Math.random().toString(36).slice(2, 8)}. Devuelve SOLO el JSON array con los 3 campos de descripción por tarjeta.`;
+    const userPrompt = `Genera las 3 tarjetas con escenarios DISTINTOS. Semilla: ${Math.random().toString(36).slice(2, 8)}. Devuelve el objeto JSON con clave "tasks" y los 3 campos de descripción por tarjeta.`;
 
     const result = await deepSeekJSON<DailyTaskRaw[]>(systemPrompt, userPrompt);
 
@@ -585,7 +604,7 @@ export async function generateDailyTest(
 
     const slotsBlock = questionLines.join('\n\n');
 
-    const systemPrompt = `Eres un evaluador de programación Python. Devuelves ÚNICAMENTE un JSON array de preguntas de opción múltiple (A, B, C). Sin texto extra ni markdown.
+    const systemPrompt = `Eres un evaluador de programación Python. Devuelves ÚNICAMENTE un JSON object con una clave "questions" que contiene un array de preguntas de opción múltiple (A, B, C). Sin texto extra ni markdown.
 
 ${pathContext}
 
@@ -623,20 +642,24 @@ GENERA EXACTAMENTE ${targetCount} PREGUNTAS en este orden:
 
 ${slotsBlock}
 
-FORMATO:
+FORMATO DE RESPUESTA (objeto JSON con clave "questions"):
 {
-  "id": "q1",
-  "question": "¿Qué imprime/devuelve/hace este código?\\nlinea1\\nlinea2\\nlinea3",
-  "options": { "A": "valor o efecto A", "B": "valor o efecto B", "C": "valor o efecto C" },
-  "correctAnswer": "A",
-  "explanation": "Explicación breve de por qué (1-2 frases)",
-  "skillRef": "concepto evaluado"
+  "questions": [
+    {
+      "id": "q1",
+      "question": "¿Qué imprime/devuelve/hace este código?\\nlinea1\\nlinea2\\nlinea3",
+      "options": { "A": "valor o efecto A", "B": "valor o efecto B", "C": "valor o efecto C" },
+      "correctAnswer": "A",
+      "explanation": "Explicación breve de por qué (1-2 frases)",
+      "skillRef": "concepto evaluado"
+    }
+  ]
 }
 
 Varía los valores y nombres de variables entre preguntas. Usa listas pequeñas (3-5 elementos) con números sencillos para que el alumno pueda trazar el código mentalmente.`;
 
     const today = new Date().toISOString().split('T')[0];
-    const userPrompt = `Fecha: ${today}. Semilla: ${Math.random().toString(36).slice(2, 8)}. Genera las ${targetCount} preguntas. TODAS deben mostrar código Python. Devuelve SOLO el JSON array.`;
+    const userPrompt = `Fecha: ${today}. Semilla: ${Math.random().toString(36).slice(2, 8)}. Genera las ${targetCount} preguntas. TODAS deben mostrar código Python. Devuelve el objeto JSON con clave "questions".`;
 
     // Each question needs ~400 tokens of output. Add 400 overhead for JSON structure.
     const neededTokens = Math.max(2000, targetCount * 400 + 400);
