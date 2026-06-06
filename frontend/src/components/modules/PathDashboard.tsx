@@ -112,14 +112,22 @@ const PathDashboard: React.FC = () => {
         const autoTask = dailyPlan.tasks.find(t => t.id === autoTaskId && !t.completed);
         if (autoTask) {
             const autoIdx = dailyPlan.tasks.indexOf(autoTask);
+            const autoDifficulty = cardDifficulties[autoTask.id] ?? 'dificil';
+            const autoDesc = autoDifficulty === 'dificil' ? (autoTask.descriptionDificil ?? autoTask.description)
+                : autoDifficulty === 'medio' ? (autoTask.descriptionMedio ?? autoTask.description)
+                : autoTask.description;
             const autoParams = new URLSearchParams({
                 taskTitle: autoTask.title,
-                taskDesc: autoTask.description,
+                taskDesc: autoDesc,
                 skillRef: autoTask.skillRef,
                 taskId: autoTask.id,
                 taskIndex: String(autoIdx),
                 totalTasks: String(dailyPlan.tasks.length),
+                taskDifficulty: autoDifficulty,
+                taskDescFacil: autoTask.description,
             });
+            if (autoTask.descriptionMedio) autoParams.set('taskDescMedio', autoTask.descriptionMedio);
+            if (autoTask.descriptionDificil) autoParams.set('taskDescDificil', autoTask.descriptionDificil);
             return <Navigate to={`/mentor?${autoParams.toString()}`} replace />;
         }
     }
