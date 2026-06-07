@@ -52,6 +52,8 @@ const PracticePage: React.FC = () => {
         const params = new URLSearchParams({
             skillRef: concept,
             taskTitle: concept,
+            practiceMode: 'true',
+            practiceDifficulty: difficulty,
         });
         navigate(`/mentor?${params.toString()}`);
     };
