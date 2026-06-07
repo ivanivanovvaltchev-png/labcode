@@ -424,7 +424,7 @@ const MentorPage: React.FC = () => {
                 <div className="fixed inset-0 z-50 flex items-center justify-center">
                     <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={() => setShowCompletionPopup(false)} />
 
-                    {isPracticeMode ? (
+                    {(isPracticeMode || !savedTaskId) ? (
                         /* ── Practice mode popup ── */
                         <div className="relative z-10 bg-[#1a1a1a] border border-emerald-500/40 rounded-3xl p-7 max-w-md w-full mx-4 shadow-2xl shadow-emerald-500/10">
                             <div className="text-center mb-5">
@@ -485,7 +485,9 @@ const MentorPage: React.FC = () => {
                                 >
                                     {savedTaskIndex !== null && savedTotalTasks !== null && savedTaskIndex + 1 >= savedTotalTasks
                                         ? '🎉 Terminar entrenamiento de hoy'
-                                        : `➡️ Siguiente tarjeta (${savedTaskIndex !== null ? savedTaskIndex + 2 : ''}/${savedTotalTasks})`}
+                                        : savedTaskIndex !== null && savedTotalTasks !== null
+                                            ? `➡️ Siguiente tarjeta (${savedTaskIndex + 2}/${savedTotalTasks})`
+                                            : '➡️ Siguiente tarjeta'}
                                 </button>
                                 <button
                                     onClick={handleVariantFromPopup}
