@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { callDeepSeekForMentor, callDeepSeekForMentorVariant, ChatMessage } from '../../ai/agents';
 import { loadKnowledgeProfile, buildKnowledgeBlock, buildPathBlock } from '../../lib/knowledgeProfile';
 import { loadCompletedSessions, saveCompletedSession, CompletedSession } from '../../lib/completedSessions';
-import { completeTask, getDailyPlan } from '../../lib/userProgress';
 import { loadSelectedPath, loadSelfAssessments } from '../../lib/selectedPath';
 import { getPathById, isSkillMastered } from '../../data/careerPaths';
 import { generateSkillExercise } from '../../ai/diagnosticAgent';
@@ -76,7 +75,6 @@ const MentorPage: React.FC = () => {
     const paramTaskDescFacil  = searchParams.get('taskDescFacil');
     const paramTaskDescMedio  = searchParams.get('taskDescMedio');
     const paramTaskDescDificil = searchParams.get('taskDescDificil');
-    const paramPracticeMode    = searchParams.get('practiceMode') === 'true';
     const paramPracticeDiff    = (searchParams.get('practiceDifficulty') ?? 'dificil') as 'facil' | 'medio' | 'dificil';
     const hasSkillContext = !!(paramTaskTitle || paramSkillRef);
     const taskIndex   = paramTaskIndex  !== null ? parseInt(paramTaskIndex)  : null;
@@ -103,13 +101,11 @@ const MentorPage: React.FC = () => {
         dificil: paramTaskDescDificil ?? null,
     });
     const [showCompletionPopup, setShowCompletionPopup] = useState(false);
-    const [isPracticeMode] = useState(paramPracticeMode);
     const [practiceNextDiff, setPracticeNextDiff] = useState<'facil' | 'medio' | 'dificil'>(paramPracticeDiff);
     // Saved before URL params are cleared so the popup still has them at completion time
     const [savedTaskId, setSavedTaskId] = useState<string | null>(null);
     const [savedTaskIndex, setSavedTaskIndex] = useState<number | null>(null);
     const [savedTotalTasks, setSavedTotalTasks] = useState<number | null>(null);
-    const [isFromTaskCard, setIsFromTaskCard] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const getKnowledgeBlock = () => {
@@ -137,7 +133,6 @@ const MentorPage: React.FC = () => {
             setExercise(session.exercise);
             setMessages(session.messages);
             setCurrentSkillContext(session.skillContext ?? null);
-            setIsFromTaskCard(true);
             setSavedTaskId(session.taskId ?? null);
             setSavedTaskIndex(session.taskIndex ?? null);
             setSavedTotalTasks(session.totalTasks ?? null);
@@ -149,7 +144,6 @@ const MentorPage: React.FC = () => {
             // Prefer paramSkillRef as the skill context (clean concept name without slot prefix)
             const skillLabel = paramSkillRef ?? paramTaskTitle ?? '';
             setCurrentSkillContext(skillLabel);
-            setIsFromTaskCard(true);
             if (paramTaskId)        setSavedTaskId(paramTaskId);
             if (taskIndex !== null) setSavedTaskIndex(taskIndex);
             if (totalTasks !== null) setSavedTotalTasks(totalTasks);
@@ -247,30 +241,11 @@ const MentorPage: React.FC = () => {
     // Open popup the first time isCompleted turns true (only when coming from a task card)
     const popupShownRef = useRef(false);
     useEffect(() => {
-        if (isCompleted && (isFromTaskCard || isPracticeMode) && !popupShownRef.current) {
+        if (isCompleted && !popupShownRef.current) {
             popupShownRef.current = true;
             setShowCompletionPopup(true);
         }
-    }, [isCompleted, isFromTaskCard, isPracticeMode]);
-
-    const handleNextTask = () => {
-        const pathId = loadSelectedPath();
-        if (pathId && savedTaskId) completeTask(pathId, savedTaskId);
-        saveCompletedSession({ exercise, messages, completedAt: Date.now(), isVariantOf: variantOrigin ?? undefined });
-        clearActiveSession();
-
-        // Find next uncompleted task after current index
-        const plan = pathId ? getDailyPlan(pathId) : null;
-        const nextTask = plan?.tasks.find((t, i) => !t.completed && i > (savedTaskIndex ?? -1)) ?? null;
-
-        // Navigate to dashboard; PathDashboard will auto-launch the next task
-        navigate('/camino', { state: nextTask ? { autoStartTaskId: nextTask.id } : undefined });
-    };
-
-    const handleVariantFromPopup = () => {
-        setShowCompletionPopup(false);
-        handleCreateVariant();
-    };
+    }, [isCompleted]);
 
     const stripTag = (text: string) => text.replace(TAG, '').replace('¡EJERCICIO COMPLETADO!', '').trim();
 
@@ -423,87 +398,56 @@ const MentorPage: React.FC = () => {
             {showCompletionPopup && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center">
                     <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={() => setShowCompletionPopup(false)} />
-
-                    {(isPracticeMode || !savedTaskId) ? (
-                        /* ── Practice mode popup ── */
-                        <div className="relative z-10 bg-[#1a1a1a] border border-emerald-500/40 rounded-3xl p-7 max-w-md w-full mx-4 shadow-2xl shadow-emerald-500/10">
-                            <div className="text-center mb-5">
-                                <div className="text-5xl mb-3">🏆</div>
-                                <h2 className="text-xl font-bold text-light mb-1">¡Ejercicio completado!</h2>
+                    <div className="relative z-10 bg-[#1a1a1a] border border-emerald-500/40 rounded-3xl p-7 max-w-md w-full mx-4 shadow-2xl shadow-emerald-500/10">
+                        <div className="text-center mb-5">
+                            <div className="text-5xl mb-3">🏆</div>
+                            <h2 className="text-xl font-bold text-light mb-1">¡Ejercicio completado!</h2>
+                            {currentSkillContext && (
                                 <p className="text-sm text-emerald-400 font-semibold">{currentSkillContext}</p>
-                            </div>
-
-                            {/* Feedback from last AI message */}
-                            {messages.length > 0 && (() => {
-                                const lastMsg = [...messages].reverse().find(m => m.role === 'assistant');
-                                const feedback = lastMsg ? stripTag(lastMsg.content).slice(0, 220).trim() : null;
-                                return feedback ? (
-                                    <p className="text-xs text-light/50 bg-light/5 rounded-xl px-4 py-3 mb-5 leading-relaxed">
-                                        {feedback}{feedback.length >= 220 ? '…' : ''}
-                                    </p>
-                                ) : null;
-                            })()}
-
-                            <p className="text-xs text-light/40 mb-2 font-semibold uppercase tracking-wider">¿Otro ejercicio?</p>
-                            <div className="grid grid-cols-3 gap-2 mb-4">
-                                {(['facil', 'medio', 'dificil'] as const).map(d => {
-                                    const isActive = practiceNextDiff === d;
-                                    const cfg = { facil: { label: '🟢 Fácil', cls: isActive ? 'border-green-400 bg-green-900/30 text-green-200' : 'border-green-500/30 text-green-400 hover:bg-green-900/20' }, medio: { label: '🟡 Medio', cls: isActive ? 'border-yellow-400 bg-yellow-900/30 text-yellow-200' : 'border-yellow-500/30 text-yellow-400 hover:bg-yellow-900/20' }, dificil: { label: '🔴 Difícil', cls: isActive ? 'border-red-400 bg-red-900/30 text-red-200' : 'border-red-500/30 text-red-400 hover:bg-red-900/20' } }[d];
-                                    return (
-                                        <button key={d} onClick={() => setPracticeNextDiff(d)} className={`text-xs font-bold py-2 rounded-xl border transition-colors ${cfg.cls}`}>
-                                            {cfg.label}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                            <button
-                                onClick={() => handlePracticeNext(practiceNextDiff)}
-                                className="w-full bg-violet-600 hover:bg-violet-500 text-white font-bold py-3.5 rounded-2xl text-sm transition-all mb-2"
-                            >
-                                ⚡ Generar ejercicio
-                            </button>
-                            <button
-                                onClick={() => navigate('/practica')}
-                                className="w-full text-xs text-light/30 hover:text-light/60 transition-colors py-2"
-                            >
-                                ← Volver a Práctica libre
-                            </button>
-                        </div>
-                    ) : (
-                        /* ── Task card popup ── */
-                        <div className="relative z-10 bg-[#1a1a1a] border border-emerald-500/40 rounded-3xl p-8 max-w-sm w-full mx-4 shadow-2xl shadow-emerald-500/10 text-center">
-                            <div className="text-6xl mb-4">🏆</div>
-                            <h2 className="text-2xl font-bold text-light mb-1">¡Completado!</h2>
-                            <p className="text-sm text-emerald-400 font-semibold mb-1">{currentSkillContext}</p>
-                            {savedTaskIndex !== null && savedTotalTasks !== null && (
-                                <p className="text-xs text-light/30 mb-6">Tarjeta {savedTaskIndex + 1} de {savedTotalTasks}</p>
                             )}
-                            <div className="space-y-3">
-                                <button
-                                    onClick={handleNextTask}
-                                    className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-2xl text-sm transition-all"
-                                >
-                                    {savedTaskIndex !== null && savedTotalTasks !== null && savedTaskIndex + 1 >= savedTotalTasks
-                                        ? '🎉 Terminar entrenamiento de hoy'
-                                        : savedTaskIndex !== null && savedTotalTasks !== null
-                                            ? `➡️ Siguiente tarjeta (${savedTaskIndex + 2}/${savedTotalTasks})`
-                                            : '➡️ Siguiente tarjeta'}
-                                </button>
-                                <button
-                                    onClick={handleVariantFromPopup}
-                                    className="w-full bg-violet-900/30 hover:bg-violet-900/50 border border-violet-500/30 text-violet-300 font-bold py-4 rounded-2xl text-sm transition-all"
-                                >
-                                    🔄 Quiero una variante del ejercicio
-                                </button>
-                                <button
-                                    onClick={() => setShowCompletionPopup(false)}
-                                    className="text-xs text-light/25 hover:text-light/50 transition-colors pt-1"
-                                >
-                                    Seguir en el chat
-                                </button>
-                            </div>
                         </div>
-                    )}
+
+                        {/* Feedback: last assistant message */}
+                        {(() => {
+                            const lastMsg = [...messages].reverse().find(m => m.role === 'assistant');
+                            const feedback = lastMsg ? stripTag(lastMsg.content).slice(0, 220).trim() : null;
+                            return feedback ? (
+                                <p className="text-xs text-light/50 bg-light/5 rounded-xl px-4 py-3 mb-5 leading-relaxed">
+                                    {feedback}{feedback.length >= 220 ? '…' : ''}
+                                </p>
+                            ) : null;
+                        })()}
+
+                        <p className="text-xs text-light/40 mb-2 font-semibold uppercase tracking-wider">¿Otro ejercicio?</p>
+                        <div className="grid grid-cols-3 gap-2 mb-4">
+                            {(['facil', 'medio', 'dificil'] as const).map(d => {
+                                const isActive = practiceNextDiff === d;
+                                const cfg = {
+                                    facil:   { label: '🟢 Fácil',  cls: isActive ? 'border-green-400  bg-green-900/30  text-green-200'  : 'border-green-500/30  text-green-400  hover:bg-green-900/20'  },
+                                    medio:   { label: '🟡 Medio',  cls: isActive ? 'border-yellow-400 bg-yellow-900/30 text-yellow-200' : 'border-yellow-500/30 text-yellow-400 hover:bg-yellow-900/20' },
+                                    dificil: { label: '🔴 Difícil', cls: isActive ? 'border-red-400   bg-red-900/30   text-red-200'    : 'border-red-500/30   text-red-400   hover:bg-red-900/20'   },
+                                }[d];
+                                return (
+                                    <button key={d} onClick={() => setPracticeNextDiff(d)}
+                                        className={`text-xs font-bold py-2 rounded-xl border transition-colors ${cfg.cls}`}>
+                                        {cfg.label}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        <button
+                            onClick={() => handlePracticeNext(practiceNextDiff)}
+                            className="w-full bg-violet-600 hover:bg-violet-500 text-white font-bold py-3.5 rounded-2xl text-sm transition-all mb-2"
+                        >
+                            ⚡ Generar ejercicio
+                        </button>
+                        <button
+                            onClick={() => setShowCompletionPopup(false)}
+                            className="w-full text-xs text-light/30 hover:text-light/60 transition-colors py-2"
+                        >
+                            Seguir en el chat
+                        </button>
+                    </div>
                 </div>
             )}
 
