@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { loadSelectedPath, loadSelfAssessments } from '../../lib/selectedPath';
 import { CAREER_PATHS, calculateProgress } from '../../data/careerPaths';
@@ -26,6 +26,18 @@ const XP_PER_LEVEL = 1_000;
 const Navigation: React.FC<NavigationProps> = ({ user = 'Estudiante', userId }) => {
     const navigate = useNavigate();
     const [signingOut, setSigningOut] = useState(false);
+    const [mentorOpen, setMentorOpen] = useState(false);
+    const mentorRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handler = (e: MouseEvent) => {
+            if (mentorRef.current && !mentorRef.current.contains(e.target as Node)) {
+                setMentorOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, []);
 
     // Compute real curriculum progress for XP display
     const selectedPathId = loadSelectedPath();
@@ -96,9 +108,44 @@ const Navigation: React.FC<NavigationProps> = ({ user = 'Estudiante', userId }) 
                         </Link>
                     )}
 
-                    <Link to="/mentor" className="text-sm font-bold text-violet-400 hover:text-violet-300 flex items-center gap-1.5 bg-violet-900/20 px-3 py-1.5 rounded-lg border border-violet-500/30 transition-colors">
-                        🧠 <span className="hidden lg:inline">Mentor</span>
-                    </Link>
+                    <div className="relative" ref={mentorRef}>
+                        <button
+                            onClick={() => setMentorOpen(v => !v)}
+                            className="text-sm font-bold text-violet-400 hover:text-violet-300 flex items-center gap-1.5 bg-violet-900/20 px-3 py-1.5 rounded-lg border border-violet-500/30 transition-colors"
+                        >
+                            🧠 <span className="hidden lg:inline">Mentor</span>
+                            <svg className="w-3 h-3 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </button>
+                        {mentorOpen && (
+                            <div className="absolute top-full mt-1.5 left-0 min-w-[200px] bg-[#1a1a1a] border border-violet-500/30 rounded-xl overflow-hidden shadow-2xl z-50">
+                                <Link
+                                    to="/mentor"
+                                    onClick={() => setMentorOpen(false)}
+                                    className="flex items-center gap-2.5 px-4 py-3 text-sm text-violet-300 hover:bg-violet-900/30 transition-colors"
+                                >
+                                    <span>🧠</span>
+                                    <div>
+                                        <div className="font-semibold">Ayuda con ejercicio</div>
+                                        <div className="text-xs text-violet-300/50">El mentor te guía paso a paso</div>
+                                    </div>
+                                </Link>
+                                <div className="border-t border-violet-500/20" />
+                                <Link
+                                    to="/practica"
+                                    onClick={() => setMentorOpen(false)}
+                                    className="flex items-center gap-2.5 px-4 py-3 text-sm text-violet-300 hover:bg-violet-900/30 transition-colors"
+                                >
+                                    <span>⚡</span>
+                                    <div>
+                                        <div className="font-semibold">Práctica libre</div>
+                                        <div className="text-xs text-violet-300/50">Ejercicios según tu nivel actual</div>
+                                    </div>
+                                </Link>
+                            </div>
+                        )}
+                    </div>
 
                     <Link to="/perfil-aprendizaje" className="text-sm font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1.5 bg-emerald-900/20 px-3 py-1.5 rounded-lg border border-emerald-500/30 transition-colors">
                         📂 <span className="hidden lg:inline">Mi Perfil</span>

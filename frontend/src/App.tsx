@@ -9,6 +9,7 @@ import { supabase } from './lib/supabaseClient';
 import { Session } from '@supabase/supabase-js';
 import { ProgressiveExerciseView } from './components/exercises/ProgressiveExerciseView';
 import MentorPage from './components/modules/MentorPage';
+import PracticePage from './components/modules/PracticePage';
 import KnowledgePage from './components/modules/KnowledgePage';
 import DailyTestPage from './components/modules/DailyTestPage';
 import PathSelector from './components/layout/PathSelector';
@@ -148,6 +149,7 @@ function App() {
                         <Route path="/error-test" element={<ErrorTestPage />} />
                         <Route path="/ejercicios-progresivos" element={<ProgressiveExerciseView />} />
                         <Route path="/mentor" element={<MentorPage />} />
+                        <Route path="/practica" element={<PracticePage />} />
                         <Route path="/perfil-aprendizaje" element={<KnowledgePage />} />
                         <Route path="/test-diario" element={<DailyTestPage />} />
                         <Route path="*" element={<Navigate to="/" replace />} />
