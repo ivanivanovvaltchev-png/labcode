@@ -103,6 +103,8 @@ const MentorPage: React.FC = () => {
     });
     const [showCompletionPopup, setShowCompletionPopup] = useState(false);
     const [practiceNextDiff, setPracticeNextDiff] = useState<'facil' | 'medio' | 'dificil'>(paramPracticeDiff);
+    // isTaskCardSession: true when launched from a PathDashboard task card (has taskId)
+    const [isTaskCardSession, setIsTaskCardSession] = useState(!!(paramTaskId || paramResumeTaskId));
     // Saved before URL params are cleared so the popup still has them at completion time
     const [savedTaskId, setSavedTaskId] = useState<string | null>(null);
     const [savedTaskIndex, setSavedTaskIndex] = useState<number | null>(null);
@@ -137,15 +139,18 @@ const MentorPage: React.FC = () => {
             setSavedTaskId(session.taskId ?? null);
             setSavedTaskIndex(session.taskIndex ?? null);
             setSavedTotalTasks(session.totalTasks ?? null);
+            setIsTaskCardSession(true);
             setExerciseSubmitted(true);
             setSearchParams({}, { replace: true });
 
         } else if (hasSkillContext) {
             // ── NEW exercise: coming from a skill/task button ──
-            // Prefer paramSkillRef as the skill context (clean concept name without slot prefix)
             const skillLabel = paramSkillRef ?? paramTaskTitle ?? '';
             setCurrentSkillContext(skillLabel);
-            if (paramTaskId)        setSavedTaskId(paramTaskId);
+            if (paramTaskId) {
+                setSavedTaskId(paramTaskId);
+                setIsTaskCardSession(true);
+            }
             if (taskIndex !== null) setSavedTaskIndex(taskIndex);
             if (totalTasks !== null) setSavedTotalTasks(totalTasks);
 
@@ -410,7 +415,7 @@ const MentorPage: React.FC = () => {
                 <div className="fixed inset-0 z-50 flex items-center justify-center">
                     <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={() => setShowCompletionPopup(false)} />
 
-                    {savedTaskId ? (
+                    {isTaskCardSession ? (
                         /* ── Task card popup ── */
                         <div className="relative z-10 bg-[#1a1a1a] border border-emerald-500/40 rounded-3xl p-8 max-w-sm w-full mx-4 shadow-2xl shadow-emerald-500/10 text-center">
                             <div className="text-6xl mb-4">🏆</div>
