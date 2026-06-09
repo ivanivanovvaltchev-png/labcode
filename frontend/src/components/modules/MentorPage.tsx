@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { callDeepSeekForMentor, callDeepSeekForMentorVariant, ChatMessage } from '../../ai/agents';
 import { loadKnowledgeProfile, buildKnowledgeBlock, buildPathBlock } from '../../lib/knowledgeProfile';
 import { loadCompletedSessions, saveCompletedSession, CompletedSession } from '../../lib/completedSessions';
+import { completeTask, getDailyPlan } from '../../lib/userProgress';
 import { loadSelectedPath, loadSelfAssessments } from '../../lib/selectedPath';
 import { getPathById, isSkillMastered } from '../../data/careerPaths';
 import { generateSkillExercise } from '../../ai/diagnosticAgent';
@@ -247,6 +248,16 @@ const MentorPage: React.FC = () => {
         }
     }, [isCompleted]);
 
+    const handleNextTask = () => {
+        const pathId = loadSelectedPath();
+        if (pathId && savedTaskId) completeTask(pathId, savedTaskId);
+        saveCompletedSession({ exercise, messages, completedAt: Date.now(), isVariantOf: variantOrigin ?? undefined });
+        clearActiveSession();
+        const plan = pathId ? getDailyPlan(pathId) : null;
+        const nextTask = plan?.tasks.find((t, i) => !t.completed && i > (savedTaskIndex ?? -1)) ?? null;
+        navigate('/camino', { state: nextTask ? { autoStartTaskId: nextTask.id } : undefined });
+    };
+
     const stripTag = (text: string) => text.replace(TAG, '').replace('¡EJERCICIO COMPLETADO!', '').trim();
 
     const resumeSession = () => {
@@ -398,56 +409,85 @@ const MentorPage: React.FC = () => {
             {showCompletionPopup && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center">
                     <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={() => setShowCompletionPopup(false)} />
-                    <div className="relative z-10 bg-[#1a1a1a] border border-emerald-500/40 rounded-3xl p-7 max-w-md w-full mx-4 shadow-2xl shadow-emerald-500/10">
-                        <div className="text-center mb-5">
-                            <div className="text-5xl mb-3">🏆</div>
-                            <h2 className="text-xl font-bold text-light mb-1">¡Ejercicio completado!</h2>
-                            {currentSkillContext && (
-                                <p className="text-sm text-emerald-400 font-semibold">{currentSkillContext}</p>
+
+                    {savedTaskId ? (
+                        /* ── Task card popup ── */
+                        <div className="relative z-10 bg-[#1a1a1a] border border-emerald-500/40 rounded-3xl p-8 max-w-sm w-full mx-4 shadow-2xl shadow-emerald-500/10 text-center">
+                            <div className="text-6xl mb-4">🏆</div>
+                            <h2 className="text-2xl font-bold text-light mb-1">¡Completado!</h2>
+                            <p className="text-sm text-emerald-400 font-semibold mb-1">{currentSkillContext}</p>
+                            {savedTaskIndex !== null && savedTotalTasks !== null && (
+                                <p className="text-xs text-light/30 mb-6">Tarjeta {savedTaskIndex + 1} de {savedTotalTasks}</p>
                             )}
+                            <div className="space-y-3 mt-6">
+                                <button
+                                    onClick={handleNextTask}
+                                    className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-2xl text-sm transition-all"
+                                >
+                                    {savedTaskIndex !== null && savedTotalTasks !== null && savedTaskIndex + 1 >= savedTotalTasks
+                                        ? '🎉 Terminar entrenamiento de hoy'
+                                        : savedTaskIndex !== null && savedTotalTasks !== null
+                                            ? `➡️ Siguiente tarjeta (${savedTaskIndex + 2}/${savedTotalTasks})`
+                                            : '➡️ Siguiente tarjeta'}
+                                </button>
+                                <button
+                                    onClick={() => setShowCompletionPopup(false)}
+                                    className="text-xs text-light/25 hover:text-light/50 transition-colors pt-1"
+                                >
+                                    Seguir en el chat
+                                </button>
+                            </div>
                         </div>
-
-                        {/* Feedback: last assistant message */}
-                        {(() => {
-                            const lastMsg = [...messages].reverse().find(m => m.role === 'assistant');
-                            const feedback = lastMsg ? stripTag(lastMsg.content).slice(0, 220).trim() : null;
-                            return feedback ? (
-                                <p className="text-xs text-light/50 bg-light/5 rounded-xl px-4 py-3 mb-5 leading-relaxed">
-                                    {feedback}{feedback.length >= 220 ? '…' : ''}
-                                </p>
-                            ) : null;
-                        })()}
-
-                        <p className="text-xs text-light/40 mb-2 font-semibold uppercase tracking-wider">¿Otro ejercicio?</p>
-                        <div className="grid grid-cols-3 gap-2 mb-4">
-                            {(['facil', 'medio', 'dificil'] as const).map(d => {
-                                const isActive = practiceNextDiff === d;
-                                const cfg = {
-                                    facil:   { label: '🟢 Fácil',  cls: isActive ? 'border-green-400  bg-green-900/30  text-green-200'  : 'border-green-500/30  text-green-400  hover:bg-green-900/20'  },
-                                    medio:   { label: '🟡 Medio',  cls: isActive ? 'border-yellow-400 bg-yellow-900/30 text-yellow-200' : 'border-yellow-500/30 text-yellow-400 hover:bg-yellow-900/20' },
-                                    dificil: { label: '🔴 Difícil', cls: isActive ? 'border-red-400   bg-red-900/30   text-red-200'    : 'border-red-500/30   text-red-400   hover:bg-red-900/20'   },
-                                }[d];
-                                return (
-                                    <button key={d} onClick={() => setPracticeNextDiff(d)}
-                                        className={`text-xs font-bold py-2 rounded-xl border transition-colors ${cfg.cls}`}>
-                                        {cfg.label}
-                                    </button>
-                                );
-                            })}
+                    ) : (
+                        /* ── Practice / free mentor popup ── */
+                        <div className="relative z-10 bg-[#1a1a1a] border border-emerald-500/40 rounded-3xl p-7 max-w-md w-full mx-4 shadow-2xl shadow-emerald-500/10">
+                            <div className="text-center mb-5">
+                                <div className="text-5xl mb-3">🏆</div>
+                                <h2 className="text-xl font-bold text-light mb-1">¡Ejercicio completado!</h2>
+                                {currentSkillContext && (
+                                    <p className="text-sm text-emerald-400 font-semibold">{currentSkillContext}</p>
+                                )}
+                            </div>
+                            {(() => {
+                                const lastMsg = [...messages].reverse().find(m => m.role === 'assistant');
+                                const feedback = lastMsg ? stripTag(lastMsg.content).slice(0, 220).trim() : null;
+                                return feedback ? (
+                                    <p className="text-xs text-light/50 bg-light/5 rounded-xl px-4 py-3 mb-5 leading-relaxed">
+                                        {feedback}{feedback.length >= 220 ? '…' : ''}
+                                    </p>
+                                ) : null;
+                            })()}
+                            <p className="text-xs text-light/40 mb-2 font-semibold uppercase tracking-wider">¿Otro ejercicio?</p>
+                            <div className="grid grid-cols-3 gap-2 mb-4">
+                                {(['facil', 'medio', 'dificil'] as const).map(d => {
+                                    const isActive = practiceNextDiff === d;
+                                    const cfg = {
+                                        facil:   { label: '🟢 Fácil',  cls: isActive ? 'border-green-400  bg-green-900/30  text-green-200'  : 'border-green-500/30  text-green-400  hover:bg-green-900/20'  },
+                                        medio:   { label: '🟡 Medio',  cls: isActive ? 'border-yellow-400 bg-yellow-900/30 text-yellow-200' : 'border-yellow-500/30 text-yellow-400 hover:bg-yellow-900/20' },
+                                        dificil: { label: '🔴 Difícil', cls: isActive ? 'border-red-400   bg-red-900/30   text-red-200'    : 'border-red-500/30   text-red-400   hover:bg-red-900/20'   },
+                                    }[d];
+                                    return (
+                                        <button key={d} onClick={() => setPracticeNextDiff(d)}
+                                            className={`text-xs font-bold py-2 rounded-xl border transition-colors ${cfg.cls}`}>
+                                            {cfg.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            <button
+                                onClick={() => handlePracticeNext(practiceNextDiff)}
+                                className="w-full bg-violet-600 hover:bg-violet-500 text-white font-bold py-3.5 rounded-2xl text-sm transition-all mb-2"
+                            >
+                                ⚡ Generar ejercicio
+                            </button>
+                            <button
+                                onClick={() => setShowCompletionPopup(false)}
+                                className="w-full text-xs text-light/30 hover:text-light/60 transition-colors py-2"
+                            >
+                                Seguir en el chat
+                            </button>
                         </div>
-                        <button
-                            onClick={() => handlePracticeNext(practiceNextDiff)}
-                            className="w-full bg-violet-600 hover:bg-violet-500 text-white font-bold py-3.5 rounded-2xl text-sm transition-all mb-2"
-                        >
-                            ⚡ Generar ejercicio
-                        </button>
-                        <button
-                            onClick={() => setShowCompletionPopup(false)}
-                            className="w-full text-xs text-light/30 hover:text-light/60 transition-colors py-2"
-                        >
-                            Seguir en el chat
-                        </button>
-                    </div>
+                    )}
                 </div>
             )}
 
