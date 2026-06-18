@@ -20,6 +20,7 @@ interface MentorSession {
     taskId?: string;
     taskIndex?: number;
     totalTasks?: number;
+    isTaskCard?: boolean;
 }
 
 function saveActiveSession(
@@ -29,9 +30,10 @@ function saveActiveSession(
     taskId?: string,
     taskIndex?: number,
     totalTasks?: number,
+    isTaskCard?: boolean,
 ) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        exercise, messages, savedAt: Date.now(), skillContext, taskId, taskIndex, totalTasks,
+        exercise, messages, savedAt: Date.now(), skillContext, taskId, taskIndex, totalTasks, isTaskCard,
     }));
 }
 
@@ -139,7 +141,7 @@ const MentorPage: React.FC = () => {
             setSavedTaskId(session.taskId ?? null);
             setSavedTaskIndex(session.taskIndex ?? null);
             setSavedTotalTasks(session.totalTasks ?? null);
-            setIsTaskCardSession(true);
+            setIsTaskCardSession(session.isTaskCard ?? true);
             setExerciseSubmitted(true);
             setSearchParams({}, { replace: true });
 
@@ -209,9 +211,10 @@ const MentorPage: React.FC = () => {
                 savedTaskId ?? undefined,
                 savedTaskIndex ?? undefined,
                 savedTotalTasks ?? undefined,
+                isTaskCardSession || undefined,
             );
         }
-    }, [messages, exercise, exerciseSubmitted, currentSkillContext, savedTaskId, savedTaskIndex, savedTotalTasks]);
+    }, [messages, exercise, exerciseSubmitted, currentSkillContext, savedTaskId, savedTaskIndex, savedTotalTasks, isTaskCardSession]);
 
     const isCompleted = manuallyCompleted || messages.some(m =>
         m.role === 'assistant' && (
@@ -415,7 +418,7 @@ const MentorPage: React.FC = () => {
                 <div className="fixed inset-0 z-50 flex items-center justify-center">
                     <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={() => setShowCompletionPopup(false)} />
 
-                    {isTaskCardSession ? (
+                    {(isTaskCardSession || !!savedTaskId) ? (
                         /* ── Task card popup ── */
                         <div className="relative z-10 bg-[#1a1a1a] border border-emerald-500/40 rounded-3xl p-8 max-w-sm w-full mx-4 shadow-2xl shadow-emerald-500/10 text-center">
                             <div className="text-6xl mb-4">🏆</div>
