@@ -173,8 +173,13 @@ export async function callDeepSeekForMentor(
     mode: 'init' | 'chat',
     knowledgeBlock: string = ''
 ): Promise<string> {
-    const systemPrompt = `Eres un mentor de programación experto. Tu misión es guiar al estudiante para que resuelva el ejercicio por sí mismo, sin darle la solución directa.${knowledgeBlock}
+    const hasProfile = knowledgeBlock.trim().length > 0;
 
+    const knowledgeSection = hasProfile
+        ? `${knowledgeBlock}
+
+IMPORTANTE: El bloque de perfil de arriba es la ÚNICA fuente de verdad sobre lo que el estudiante sabe. Si un concepto aparece en ese perfil (tuplas, sets, diccionarios, funciones, etc.), PUEDES y DEBES usarlo. Solo prohíbe conceptos que NO aparezcan en el perfil.`
+        : `
 CONOCIMIENTOS DEL ESTUDIANTE (solo puedes usar estos conceptos):
 • Variables (str, int, float, bool), operaciones aritméticas
 • Condicionales if/elif/else
@@ -186,7 +191,10 @@ CONOCIMIENTOS DEL ESTUDIANTE (solo puedes usar estos conceptos):
 PROHIBIDO ABSOLUTO (nunca sugieras ni uses):
 • def, return, funciones, parámetros, argumentos
 • Diccionarios, tuplas, sets, clases, lambda
-• SQL, Git, archivos, excepciones
+• SQL, Git, archivos, excepciones`;
+
+    const systemPrompt = `Eres un mentor de programación experto. Tu misión es guiar al estudiante para que resuelva el ejercicio por sí mismo, sin darle la solución directa.
+${knowledgeSection}
 
 CÓMO GUIAR:
 1. Si el estudiante no ha pensado el plan aún, hazle 1-2 preguntas socráticas (¿qué entrada/salida tiene?, ¿qué pasos harías a mano?)
@@ -239,12 +247,24 @@ export async function callDeepSeekForMentorVariant(
     originalExercise: string,
     knowledgeBlock: string = ''
 ): Promise<string> {
-    const systemPrompt = `Eres un generador de variantes de ejercicios de programación del Proyecto Súper Soldado.${knowledgeBlock}
+    const hasProfile = knowledgeBlock.trim().length > 0;
 
+    const restrictionSection = hasProfile
+        ? `${knowledgeBlock}
+
+RESTRICCIONES DE CURRÍCULO — OBLIGATORIAS:
+• El perfil de conocimiento de arriba define EXACTAMENTE lo que el estudiante sabe. Usa SOLO esos conceptos.
+• Si el perfil incluye tuplas, sets, diccionarios, funciones, etc., PUEDES usarlos.
+• Solo prohíbe lo que NO aparezca en el perfil.
+• El escenario debe ser del mundo real (gestión de stock, colas, registros, inventarios). Sin matemáticas abstractas.`
+        : `
 RESTRICCIONES DE CURRÍCULO — OBLIGATORIAS:
 • Solo puedes usar: variables, condicionales (if/elif/else), listas y bucles (for/while).
 • PROHIBIDO: funciones (def/return), diccionarios, tuplas, sets, clases, archivos, excepciones, librerías externas avanzadas.
-• El escenario debe ser del mundo real (gestión de stock, colas, registros, inventarios). Sin matemáticas abstractas.
+• El escenario debe ser del mundo real (gestión de stock, colas, registros, inventarios). Sin matemáticas abstractas.`;
+
+    const systemPrompt = `Eres un generador de variantes de ejercicios de programación del Proyecto Súper Soldado.
+${restrictionSection}
 
 Tu tarea es crear UN NUEVO ejercicio que:
 1. Use los MISMOS conceptos de programación que el ejercicio original

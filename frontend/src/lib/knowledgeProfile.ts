@@ -27,12 +27,12 @@ export function clearKnowledgeProfile(): void {
 export function buildKnowledgeBlock(profile: KnowledgeProfile | null): string {
     if (!profile || profile.concepts.length === 0) return '';
     return `\n\nPERFIL DE CONOCIMIENTO DEL ESTUDIANTE (CRÍTICO — léelo antes de responder):
-El estudiante SOLO ha trabajado con los siguientes conceptos hasta ahora:
+El estudiante ha aprendido y PUEDE USAR todos los siguientes conceptos:
 ${profile.concepts.map(c => `  • ${c}`).join('\n')}
 
 Resumen del nivel: ${profile.summary}
 
-REGLA ABSOLUTA: Nunca uses ni menciones conceptos que NO estén en esa lista. Si el ejercicio o la pregunta requiere algo que el estudiante aún no ha visto, indícaselo claramente y explícale ese concepto de forma muy básica antes de continuar. Adapta SIEMPRE tu lenguaje y ejemplos al nivel real del estudiante.`;
+REGLA ABSOLUTA: TODOS los conceptos listados arriba están PERMITIDOS y el estudiante puede usarlos libremente (incluidos sets, tuplas, diccionarios, funciones, o cualquier otro que aparezca en la lista). Solo prohíbe conceptos que NO aparezcan en esa lista. Si el ejercicio requiere algo que no está en la lista, indícaselo y explícaselo de forma básica.`;
 }
 
 export function buildPathBlock(jobTitle: string, gapSkillNames: string[]): string {

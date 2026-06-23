@@ -6,6 +6,69 @@ import {
 } from './studentProfile';
 import { getContextForPrompt } from '../lib/theoryContext';
 import { getSlotConceptsForPrompt } from '../lib/masteryEngine';
+import { loadKnowledgeProfile } from '../lib/knowledgeProfile';
+
+const CONCEPT_SYNTAX_MAP: Record<string, string[]> = {
+    dict:     ['dict(', '.keys()', '.values()', '.items()', 'diccionario'],
+    tuple:    ['tuple(', 'tupla'],
+    set:      ['set(', 'conjunto'],
+    function: ['def ', 'return ', 'función', 'funcion', 'funciones', 'parámetros', 'parametros', 'argumentos'],
+    class:    ['class ', '__init__', 'self.'],
+    file:     ['open(', 'with open'],
+    except:   ['try:', 'except:', 'except ', 'raise '],
+    lambda:   ['lambda '],
+    split:    ['.split('],
+};
+
+function profileKnowsConcept(concepts: string[], family: string): boolean {
+    const lc = concepts.map(c => c.toLowerCase());
+    switch (family) {
+        case 'dict':     return lc.some(c => /diccionario|dict|\.keys|\.values|\.items/.test(c));
+        case 'tuple':    return lc.some(c => /tupla|tuple/.test(c));
+        case 'set':      return lc.some(c => /\bset\b|conjunto/.test(c));
+        case 'function': return lc.some(c => /\bdef\b|función|funcion|return|parámetro|argumento/.test(c));
+        case 'class':    return lc.some(c => /clase|class|__init__|self\./.test(c));
+        case 'file':     return lc.some(c => /archivo|open\(|lectura|escritura/.test(c));
+        case 'except':   return lc.some(c => /excepci|try|except|raise/.test(c));
+        case 'lambda':   return lc.some(c => /lambda/.test(c));
+        case 'split':    return lc.some(c => /split/.test(c));
+        default:         return false;
+    }
+}
+
+function buildDynamicBlocklist(base: string[]): string[] {
+    const profile = loadKnowledgeProfile();
+    if (!profile || profile.concepts.length === 0) return base;
+    return base.filter(term => {
+        for (const [family, syntaxes] of Object.entries(CONCEPT_SYNTAX_MAP)) {
+            if (syntaxes.includes(term) && profileKnowsConcept(profile.concepts, family)) {
+                return false;
+            }
+        }
+        return true;
+    });
+}
+
+function buildDynamicProhibitionText(): string {
+    const profile = loadKnowledgeProfile();
+    const allFamilies = ['function', 'dict', 'tuple', 'set', 'class', 'lambda', 'except', 'file'];
+    const labelMap: Record<string, string> = {
+        function: 'funciones (def/return)',
+        dict: 'diccionarios',
+        tuple: 'tuplas',
+        set: 'sets',
+        class: 'clases',
+        lambda: 'lambda',
+        except: 'excepciones',
+        file: 'archivos',
+    };
+    const forbidden = allFamilies.filter(f =>
+        !profile || profile.concepts.length === 0 || !profileKnowsConcept(profile.concepts, f)
+    );
+    if (forbidden.length === 0) return '';
+    const labels = forbidden.map(f => labelMap[f]).join(', ');
+    return `PROHIBIDO: ${labels}. Si un concepto no aparece textualmente en el material de arriba, NO PUEDE aparecer en ningún ejercicio.`;
+}
 
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions';
 
@@ -169,11 +232,7 @@ async function deepSeekJSON<T>(systemPrompt: string, userPrompt: string, tempera
     throw new Error(lastError);
 }
 
-// Guard for diagnostic questions.
-// Uses a tighter Python-syntax-only blocklist instead of CONCEPTOS_PROHIBIDOS,
-// which includes Spanish words like "función"/"funciones" that appear legitimately
-// in question prose and cause nearly all generated questions to be rejected.
-const DIAGNOSTIC_SYNTAX_BLOCKLIST = [
+const BASE_DIAGNOSTIC_SYNTAX_BLOCKLIST = [
     'def ',    // Python function definition
     '(self',   // method signature
     'class ',  // class definition
@@ -195,8 +254,9 @@ const DIAGNOSTIC_SYNTAX_BLOCKLIST = [
 ];
 
 function diagnosticQuestionPassesGuard(q: DiagnosticQuestion): boolean {
+    const blocklist = buildDynamicBlocklist(BASE_DIAGNOSTIC_SYNTAX_BLOCKLIST);
     const text = [q.question, q.hint ?? '', q.skillRef].join(' ').toLowerCase();
-    return !DIAGNOSTIC_SYNTAX_BLOCKLIST.some(term => text.includes(term));
+    return !blocklist.some(term => text.includes(term));
 }
 
 export async function generateDiagnosticExam(
@@ -216,7 +276,7 @@ ${pathContext}
 
 ${knowledgeBlock}
 
-PROHIBICIÓN TOTAL E IRREVOCABLE: queda absolutamente prohibido incluir en cualquier pregunta los conceptos: def, return, funciones, parámetros, argumentos, SQL, Git, pseudocódigo, diccionarios, tuplas, clases, lambda, excepciones. Si un concepto no aparece textualmente en el material de arriba, NO PUEDE aparecer en ningún ejercicio.
+${buildDynamicProhibitionText()}
 
 FORMATO DE RESPUESTA: Solo JSON válido con clave "questions", sin texto adicional, sin markdown.
 {
@@ -233,7 +293,7 @@ FORMATO DE RESPUESTA: Solo JSON válido con clave "questions", sin texto adicion
     const userPrompt = `Camino: ${path.title} (objetivo: ${path.jobTitle})
 ${knownConcepts}
 
-Genera exactamente 5 ejercicios prácticos basados ÚNICAMENTE en el material del sistema. Sin funciones def. Sin return. Solo variables, operadores, condicionales if/elif/else, listas, bucles for/while, input(), print() y numpy básico si aparece en el material. Ordénalos de menor a mayor dificultad.`;
+Genera exactamente 5 ejercicios prácticos basados ÚNICAMENTE en el material del sistema. Usa SOLO los conceptos que aparezcan explícitamente en el material teórico de arriba. Ordénalos de menor a mayor dificultad.`;
 
     // Hard filter + retry — same pattern as generateDailyTest
     const MAX_ATTEMPTS = 3;
@@ -419,7 +479,7 @@ ${pathContext}
 
 ${knowledgeBlock}
 
-CUALQUIER concepto que no aparezca en el material de arriba (funciones def/return, diccionarios, tuplas, clases, SQL, Git, pseudocódigo, excepciones, ORM) está TERMINANTEMENTE PROHIBIDO.
+${buildDynamicProhibitionText()}
 
 FORMATO — devuelve exactamente este JSON object con clave "tasks" sin texto extra. Cada tarjeta tiene TRES versiones del enunciado:
 {
@@ -501,7 +561,7 @@ INSTRUCCIONES:
 // 'except' (without colon) was matching the Spanish word "excepto" and
 // discarding every question that used it naturally in prose. Always use
 // the colon form 'except:' or with a trailing space 'except '.
-const DAILY_TEST_SYNTAX_BLOCKLIST = [
+const BASE_DAILY_TEST_SYNTAX_BLOCKLIST = [
     'def ',       // function definition — always has space after keyword
     '(self,',     // method parameter — tighter than '(self' to avoid false positives
     'class ',     // class definition
@@ -523,6 +583,7 @@ const DAILY_TEST_SYNTAX_BLOCKLIST = [
 ];
 
 function questionPassesGuard(q: TestQuestion): boolean {
+    const blocklist = buildDynamicBlocklist(BASE_DAILY_TEST_SYNTAX_BLOCKLIST);
     const text = [
         q.question,
         q.options.A,
@@ -530,7 +591,7 @@ function questionPassesGuard(q: TestQuestion): boolean {
         q.options.C,
         q.explanation ?? '',
     ].join(' ').toLowerCase();
-    return !DAILY_TEST_SYNTAX_BLOCKLIST.some(term => text.includes(term));
+    return !blocklist.some(term => text.includes(term));
 }
 
 /** Maps mood (1–5) to target question count for the daily test. */
@@ -622,7 +683,7 @@ PROHIBIDO ABSOLUTAMENTE:
   • Enunciados de inventario, temperatura, frutas, notas SIN código Python
   • Problemas de lógica que no muestren sintaxis Python real
   • "¿Cuántas unidades quedan...?" "¿Cuál es el promedio de...?" sin código
-  • def , class , try:, except:, except , tuple(, .split(, dict(, self., lambda
+  • ${buildDynamicProhibitionText() || 'Conceptos que no aparezcan en el material teórico del estudiante'}
 
 EJEMPLO CORRECTO:
 {
