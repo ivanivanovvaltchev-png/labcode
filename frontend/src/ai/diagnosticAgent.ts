@@ -211,15 +211,27 @@ async function deepSeekJSON<T>(systemPrompt: string, userPrompt: string, tempera
             const sanitized = sanitizeLLMJson(raw);
             try {
                 const parsed = JSON.parse(sanitized);
-                // Unwrap {"questions":[...]} or {"items":[...]} or similar single-key array wrappers
+                // Unwrap {"questions":[...]} or {"tasks":[...]} or similar single-key array wrappers
                 if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
                     const keys = Object.keys(parsed);
                     if (keys.length === 1 && Array.isArray(parsed[keys[0]])) {
                         return parsed[keys[0]] as T;
                     }
+                    // Multi-key object — look for a known array key
+                    const arrayKey = keys.find(k => Array.isArray(parsed[k]));
+                    if (arrayKey) return parsed[arrayKey] as T;
                 }
                 return parsed as T;
-            } catch { throw new Error('Respuesta de IA no parseable como JSON'); }
+            } catch (parseErr) {
+                console.error('[deepSeekJSON] JSON parse failed. Raw:', raw.slice(0, 300), parseErr);
+                lastError = 'Respuesta de IA no parseable como JSON';
+                // Retry on parse failure if we have attempts left
+                if (attempt < RETRY_DELAYS.length) {
+                    await new Promise(r => setTimeout(r, RETRY_DELAYS[attempt]));
+                    continue;
+                }
+                throw new Error(lastError);
+            }
         }
         const bodyText = await response.text().catch(() => '');
         lastError = `API ${response.status}: ${bodyText.slice(0, 200)}`;
@@ -513,7 +525,12 @@ ${card3Block}`;
 
     const userPrompt = `Genera las 3 tarjetas con escenarios DISTINTOS. Semilla: ${Math.random().toString(36).slice(2, 8)}. Devuelve el objeto JSON con clave "tasks" y los 3 campos de descripción por tarjeta.`;
 
-    const result = await deepSeekJSON<DailyTaskRaw[]>(systemPrompt, userPrompt);
+    const rawResult = await deepSeekJSON<DailyTaskRaw[] | { tasks?: DailyTaskRaw[] }>(systemPrompt, userPrompt);
+    const result: DailyTaskRaw[] = Array.isArray(rawResult)
+        ? rawResult
+        : (rawResult as { tasks?: DailyTaskRaw[] }).tasks ?? [];
+
+    if (result.length === 0) throw new Error('Respuesta de IA no parseable como JSON');
 
     // Overwrite title and skillRef with clean values — never inherit noisy AI output
     const labels = [
@@ -724,7 +741,12 @@ Varía los valores y nombres de variables entre preguntas. Usa listas pequeñas 
 
     // Each question needs ~400 tokens of output. Add 400 overhead for JSON structure.
     const neededTokens = Math.max(2000, targetCount * 400 + 400);
-    const raw = await deepSeekJSON<TestQuestion[]>(systemPrompt, userPrompt, 0.85, neededTokens);
+    const rawResult2 = await deepSeekJSON<TestQuestion[] | { questions?: TestQuestion[] }>(systemPrompt, userPrompt, 0.85, neededTokens);
+    const raw: TestQuestion[] = Array.isArray(rawResult2)
+        ? rawResult2
+        : (rawResult2 as { questions?: TestQuestion[] }).questions ?? [];
+
+    if (raw.length === 0) throw new Error('Respuesta de IA no parseable como JSON');
 
     // Tag slot refs for mastery tracking
     const slotRefs = [
