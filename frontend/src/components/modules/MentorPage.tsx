@@ -268,6 +268,15 @@ const MentorPage: React.FC = () => {
 
     const stripTag = (text: string) => text.replace(TAG, '').replace('¡EJERCICIO COMPLETADO!', '').trim();
 
+    const handleExplainExercise = () => {
+        setShowCompletionPopup(false);
+        popupShownRef.current = false;
+        setMessages(prev => [
+            ...prev,
+            { role: 'assistant', content: 'Bien, ¿cuál es la parte que no has entendido o sobre la que quieres que profundice?' },
+        ]);
+    };
+
     const resumeSession = () => {
         if (!savedSession) return;
         setExercise(savedSession.exercise);
@@ -439,6 +448,12 @@ const MentorPage: React.FC = () => {
                                             : '➡️ Siguiente tarjeta'}
                                 </button>
                                 <button
+                                    onClick={handleExplainExercise}
+                                    className="w-full bg-violet-900/40 hover:bg-violet-900/60 border border-violet-500/30 text-violet-300 font-semibold py-3 rounded-2xl text-sm transition-all"
+                                >
+                                    💬 Explicar el ejercicio
+                                </button>
+                                <button
                                     onClick={() => setShowCompletionPopup(false)}
                                     className="text-xs text-light/25 hover:text-light/50 transition-colors pt-1"
                                 >
@@ -487,6 +502,12 @@ const MentorPage: React.FC = () => {
                                 className="w-full bg-violet-600 hover:bg-violet-500 text-white font-bold py-3.5 rounded-2xl text-sm transition-all mb-2"
                             >
                                 ⚡ Generar ejercicio
+                            </button>
+                            <button
+                                onClick={handleExplainExercise}
+                                className="w-full bg-violet-900/40 hover:bg-violet-900/60 border border-violet-500/30 text-violet-300 font-semibold py-3 rounded-2xl text-sm transition-all mb-2"
+                            >
+                                💬 Explicar el ejercicio
                             </button>
                             <button
                                 onClick={() => setShowCompletionPopup(false)}
