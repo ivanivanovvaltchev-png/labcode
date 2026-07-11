@@ -104,6 +104,7 @@ const MentorPage: React.FC = () => {
         dificil: paramTaskDescDificil ?? null,
     });
     const [showCompletionPopup, setShowCompletionPopup] = useState(false);
+    const [explainMode, setExplainMode] = useState(false);
     const [practiceNextDiff, setPracticeNextDiff] = useState<'facil' | 'medio' | 'dificil'>(paramPracticeDiff);
     // isTaskCardSession: true when launched from a PathDashboard task card (has taskId)
     const [isTaskCardSession, setIsTaskCardSession] = useState(!!(paramTaskId || paramResumeTaskId));
@@ -271,6 +272,7 @@ const MentorPage: React.FC = () => {
     const handleExplainExercise = () => {
         setShowCompletionPopup(false);
         popupShownRef.current = false;
+        setExplainMode(true);
         setMessages(prev => [
             ...prev,
             { role: 'assistant', content: 'Bien, ¿cuál es la parte que no has entendido o sobre la que quieres que profundice?' },
@@ -298,7 +300,7 @@ const MentorPage: React.FC = () => {
     };
 
     const handleSend = async () => {
-        if (!input.trim() || isLoading || isCompleted) return;
+        if (!input.trim() || isLoading || (isCompleted && !explainMode)) return;
         const userMsg: ChatMessage = { role: 'user', content: input };
         const updated = [...messages, userMsg];
         setMessages(updated);
@@ -328,6 +330,7 @@ const MentorPage: React.FC = () => {
         clearActiveSession();
         setCompletedSessions(loadCompletedSessions());
         setManuallyCompleted(false);
+        setExplainMode(false);
 
         setIsGeneratingVariant(true);
         const origin = exercise;
@@ -359,6 +362,7 @@ const MentorPage: React.FC = () => {
         setSavedSession(null);
         setVariantOrigin(null);
         setManuallyCompleted(false);
+        setExplainMode(false);
         setCurrentSkillContext(null);
     };
 
@@ -759,7 +763,7 @@ const MentorPage: React.FC = () => {
                         </div>
 
                         {/* Completion banner OR input */}
-                        {isCompleted ? (
+                        {isCompleted && !explainMode ? (
                             <div className="p-4 border-t border-emerald-500/20 bg-emerald-900/10 flex-shrink-0">
                                 {isGeneratingVariant ? (
                                     <div className="flex items-center justify-center gap-3 py-2">
@@ -785,12 +789,23 @@ const MentorPage: React.FC = () => {
                             </div>
                         ) : (
                             <div className="p-4 border-t border-light/10 flex-shrink-0">
+                                {explainMode && (
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-xs text-violet-400 font-semibold">💬 Modo explicación — pregúntame lo que quieras</span>
+                                        <button
+                                            onClick={() => setExplainMode(false)}
+                                            className="text-xs text-light/30 hover:text-light/60 transition-colors"
+                                        >
+                                            Volver a completado
+                                        </button>
+                                    </div>
+                                )}
                                 <div className="flex gap-3">
                                     <textarea
                                         value={input}
                                         onChange={(e) => setInput(e.target.value)}
                                         onKeyDown={handleKeyDown}
-                                        placeholder="Escribe tu respuesta o pregunta… (Enter para enviar)"
+                                        placeholder={explainMode ? '¿Qué quieres que te explique?' : 'Escribe tu respuesta o pregunta… (Enter para enviar)'}
                                         disabled={isLoading}
                                         rows={2}
                                         className="flex-1 bg-[#0f0f0f] border border-light/10 rounded-xl px-4 py-3 text-sm text-light placeholder-light/30 resize-none focus:outline-none focus:border-violet-500/50 transition-colors disabled:opacity-50 max-h-[120px]"
