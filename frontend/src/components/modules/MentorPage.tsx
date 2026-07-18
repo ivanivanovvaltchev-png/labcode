@@ -138,8 +138,12 @@ const MentorPage: React.FC = () => {
             if (focusPath) {
                 block += `\n\nMODO "MEJORA" — FOCO EXCLUSIVO (CRÍTICO):
 El estudiante ha elegido centrarse SOLO en el tema "${focusPath.title}" (del material "${focusPath.sourceFile}") porque no lo tiene claro todavía.
-IGNORA el resto de su perfil para este ejercicio. Usa ÚNICAMENTE estos conceptos, tal y como se explican en el PDF original:
-${focusPath.concepts.map(c => `  • ${c.name}: ${c.description}`).join('\n')}
+IGNORA el resto de su perfil para este ejercicio. Tu ÚNICA fuente de verdad es el contenido real de este PDF, reproducido íntegro a continuación — básate en él exactamente como está explicado, con los mismos ejemplos, métodos y sintaxis, sin inventar ni añadir nada que no aparezca aquí:
+
+--- INICIO CONTENIDO REAL DEL PDF "${focusPath.sourceFile}" ---
+${focusPath.rawText}
+--- FIN CONTENIDO REAL DEL PDF ---
+
 No introduzcas conceptos de otros temas ni mezcles con el resto del currículo.`;
             }
         }

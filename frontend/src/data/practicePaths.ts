@@ -37,6 +37,13 @@ export interface PracticePath {
     emoji: string;
     description: string;
     concepts: PracticeConcept[];
+    /**
+     * Contenido real del PDF (texto de las diapositivas, en orden, incluyendo
+     * código y salidas). Esto es lo que se inyecta literalmente en el prompt
+     * de la IA cuando el usuario practica esta sección en el modo "Mejora"
+     * (Mentor → Mejora) — así la IA analiza el PDF real, no solo un resumen.
+     */
+    rawText: string;
 }
 
 export const PRACTICE_PATHS: PracticePath[] = [
@@ -109,6 +116,155 @@ export const PRACTICE_PATHS: PracticePath[] = [
             { id: 'vto-comentarios-sintaxis', name: 'Sintaxis de un comentario: #', description: 'La almohadilla # al principio de una línea marca esa línea entera como comentario, ej. # Esto es un comentario.', order: 60 },
             { id: 'vto-comentarios-strings-sueltos', name: 'Truco: strings sueltos como pseudo-comentario', description: 'Un string que no está asignado a ninguna variable (ni simple ni triple-comilla multilínea) es evaluado pero ignorado por el intérprete, por lo que también actúa como un comentario informal.', order: 61 },
         ],
+        rawText: `QUE ES PYTHON
+Lenguaje creado en los años 80 por Guido van Rossum en el Centro para las Matemáticas y la Informática CWI de los países bajos.
+Multiplataforma: Unix, Linux, MacOS, Windows.
+Multiparadigma (alto nivel): permite programación orientada a objetos, programación estructurada y programación funcional.
+Sintaxis compacta, sencilla e intuitiva, con una curva de aprendizaje mínima y una potente librería de funciones y clases.
+Un programa de Python no se compila sino que se ejecuta directamente (usa un intérprete). Eso permite hacer cosas imposibles en otros lenguajes como ejecutar instrucciones de manera interactiva, crear funciones al vuelo mientras un programa se ejecuta, interpretar un string como código Python y ejecutarlo, etc.
+
+LINEA DE COMANDOS VS SCRIPTS
+Se puede escribir Python directamente en la terminal en modo interactivo:
+>>> 'Esto es una linea de comandos de python'
+'Esto es una linea de comandos de python'
+>>> 3+2
+5
+>>> exit()
+O se puede guardar el código en un archivo .py (script) y ejecutarlo completo de una vez, por ejemplo un archivo suma.py con: print(3+2)
+
+VARIABLES
+Definición: Espacio reservado en memoria que tiene asignado un identificador.
+En pseudocódigo se DECLARA la variable indicando su tipo antes de usarla:
+Definir sumaTotal Como Entero
+Definir precio Como Real
+Definir nota Como Texto
+Definir terminado Como Logica
+Luego se INICIALIZA asignándole un valor:
+sumaTotal = 12
+precio = 20.5
+nota = "Hola"
+terminado = Falso
+En PYTHON NO declaramos las variables. Las variables se inicializan directamente:
+numero_entero = 42
+numero_decimal = 12.5
+texto = 'hola'
+variable_logica = True
+Inicialización explícita usando las funciones de tipo:
+numero_entero = int(42)
+numero_decimal = float(12.5)
+texto = str('hola')
+variable_logica = bool(True)
+Modificación de una variable ya creada (reasignación, usando su propio valor anterior):
+numero_entero = numero_entero + 4
+numero_decimal = 12.5 + 4.6
+texto = 'adios'
+variable_logica = False
+
+VARIABLES - NOMENCLATURA
+Los nombres pueden contener solo letras, números y barras bajas: my_variable_1, _my_variable_1 ✓
+Pueden comenzar por una letra o una barra baja pero NUNCA por un número: 1_my_variable ✗
+Los espacios no están permitidos, se pueden usar barras bajas para separar palabras: "my variable" ✗
+No se deben usar palabras ya asociadas a funciones internas de python, por ejemplo: print ✗
+Los nombres de variables deben ser cortos pero descriptivos: nombre >> n, nombre_estudiante >> n_e, tamaño_nombre >> tamaño_del_nombre_de_las_personas
+Cuidado al usar la ele minúscula 'l', la i mayúscula 'I' y la letra o mayúscula 'O'. Al leer el código se pueden confundir con los números '1', '0'.
+
+VARIABLES - ASIGNACIÓN MÚLTIPLE
+x = y = z = 10
+print(x,y,z)  →  10 10 10
+x, y, z = 10,20,30
+print(x,y,z)  →  10 20 30
+x, y, z = 'texto 1', 'texto 2', 'texto2'
+print(x,y,z)  →  texto 1 texto 2 texto2
+x, y, z = 'texto 1', 120.3, 42
+print(x,y,z)  →  texto 1 120.3 42
+
+VARIABLES - PEDIR VALORES
+La función input() permite obtener texto escrito por teclado. Siempre devuelve un string.
+print('¿Cómo te llamas?')
+nombre = input()
+print('Me alegro de conocerte', nombre)
+Se puede pasar el mensaje directamente a input(): nombre = input('¿Cómo te llamas? ')
+Error típico al operar sin convertir el tipo:
+numero = input('¿Cúantos años tienes? ')
+print('Entonces has vivido aproximadamente', 365.0*numero, 'dias')
+TypeError: can't multiply sequence by non-int of type 'float'
+Solución con float(): numero = float(input('¿Cúantos años tienes? ')) → funciona (9125.0 dias)
+Con int(): numero = int(input('¿Cúantos años tienes? ')) → funciona con valores enteros (9125 dias), pero si el usuario escribe "25.5":
+ValueError: invalid literal for int() with base 10: '25.5'
+
+VARIABLES - TIPOS
+Las funciones int(), float(), str() y bool() son funciones de tipo: convierten un tipo de dato en otro.
+numero_entero = 42; numero_decimal = float(numero_entero); print(numero_decimal) → 42.0
+La función type() devuelve el tipo de dato: type(numero_entero), type(numero_decimal), type(numero_texto) → <class 'int'> <class 'float'> <class 'str'>
+bool(0) → False; bool(1) → True; bool(42) → True; bool(45.3) → True; bool('hola') → True; bool('') → False
+
+VARIABLES - ERRORES TÍPICOS
+variable = 'esta es mi variable'
+print(varable)
+NameError: name 'varable' is not defined
+
+CONSTANTES
+CONSTANTE = VARIABLE. En algunos lenguajes de programación estas variables son inmutables. En Python las constantes no existen como tal: una constante será una variable que no variaremos a lo largo de nuestro código.
+
+STRINGS
+Variables de tipo texto. Son útiles para muchísimos propósitos: representar nombres de usuario y contraseñas, direcciones de email, mensajes de error, links…
+string1 = "Esto es un texto"
+string2 = 'Esto tambien es un texto'
+string3 = 'El otro dia le dije a mi amigo, "Python es mi lenguaje favorito"'
+Comillas simples y dobles son intercambiables. Sin comillas da error:
+string5 = esto pretende ser un texto
+SyntaxError: invalid syntax
+Comillas triples para texto multilínea:
+string4 = '''
+Este texto es completamente inventado:
+Lorem ipsum dolor sit amet...
+'''
+
+STRINGS - MÉTODOS
+title(): nombre = 'juan gomez'; nombre.title() → Juan Gomez
+upper(): nombre.upper() → JUAN GOMEZ
+lower(): nombre = 'jUAn goMeZ'; nombre.lower() → juan gomez
+rstrip() (elimina espacios a la derecha): nombre = 'python '; nombre.rstrip() → 'python' (ojo: no modifica la variable, hay que reasignar: nombre = nombre.rstrip())
+lstrip() (elimina espacios a la izquierda): nombre = ' python'; nombre.lstrip() → 'python'
+strip() (elimina espacios a ambos lados): nombre = ' python '; nombre.strip() → 'python'
+replace(): string = 'Hola.Mundo'; string.replace(".", " ") → 'Hola Mundo'
+find(): string = 'Hola Mundo'; string.find('Hol') → 0; string.find('do') → 8; string.find('hey') → -1
+startswith(): string.startswith('Hol') → True; string.startswith('Mun') → False
+endswith(): string.endswith('do') → True; string.endswith('Ho') → False
+
+STRINGS - CONCATENAR
+nombre = 'juan'; apellido = 'gomez'; nombre_completo = nombre + apellido → 'juangomez' (sin espacio)
+nombre_completo = nombre + " " + apellido → 'juan gomez'
+mensaje = "¡Hola, " + nombre_completo.title() + "!" → '¡Hola, Juan Gomez!'
+Tab: print("\\tPython") inserta un tabulador.
+Salto de línea: print("Lenguajes:\\nPython\\nJavaScript\\nSolidity") imprime cada uno en su línea.
+
+STRINGS - ÍNDICES Y SLICING
+Los índices comienzan en 0: nombre = 'Juan'; nombre[0] → 'J'
+Extraer partes: usuario = 'YoSoyJuan'; usuario[0:5] → 'YoSoy'; usuario[5:9] → 'Juan'
+Revertir un string: cadena = 'abcde'; cadena[::-1] → 'edcba'
+Tamaño de un string: len(cadena) → 5
+
+NÚMEROS
+Enteros: suma (+), resta (-), multiplicación (*), división (/, siempre float): 2+3=5, 3-2=1, 2*3=6, 3/2=1.5
+Potencia (**): 3**2=9, 3**3=27, 10**6=1000000
+Módulo o resto (%): 4%3=1, 5%3=2, 6%3=0 (dividendo entre divisor da cociente y resto)
+Orden de las operaciones: 1) paréntesis, 2) exponentes, 3) multiplicación y división, 4) suma y resta. 2 + 3*4 = 14, (2 + 3) * 4 = 20
+Floats: 0.2+0.2=0.4, 2*0.1=0.2, 2*0.2=0.4, 0.2+0.5=0.7 — pero 0.2+0.1 → 0.30000000000000004, 3*0.1 → 0.30000000000000004. El origen de esta imprecisión está en cómo los ordenadores representan internamente los números; ocurre en todos los lenguajes de programación.
+
+COMBINAR NÚMEROS Y STRINGS
+numero_dias = 365; mensaje = 'El año tiene ' + numero_dias + 'dias'
+TypeError: can only concatenate str (not "int") to str
+Solución: mensaje = 'El año tiene ' + str(numero_dias) + ' dias' → 'El año tiene 365 dias'
+
+COMENTARIOS
+Partes del script ignoradas por el intérprete — no se ejecutan. Objetivo: explicar qué debe hacer el código y cómo funcionan sus distintos segmentos; especialmente importante en trabajos colaborativos o al reutilizar código antiguo.
+Sintaxis: la almohadilla # indica que esa línea es un comentario.
+# Esto es un comentario
+# Puedo escribir lo que quiera aqui
+# y el interprete lo ignorará
+print('hey!')
+Truco: los strings que no están asociados a una variable son ignorados por el intérprete (incluidos los de triple comilla multilínea).`,
     },
     {
         id: 'tuplas',
@@ -151,6 +307,116 @@ export const PRACTICE_PATHS: PracticePath[] = [
             { id: 'tup-error-desempaquetado-pocas-variables', name: 'Error de desempaquetado: demasiados valores', description: 'Si se desempaqueta una tupla de 3 elementos en solo 2 variables (string, entero = mi_tupla), da ValueError: too many values to unpack (expected 2).', order: 32 },
             { id: 'tup-error-desempaquetado-muchas-variables', name: 'Error de desempaquetado: pocos valores', description: 'Si se desempaqueta una tupla de 3 elementos en 4 variables, da ValueError: not enough values to unpack (expected 4, got 3).', order: 33 },
         ],
+        rawText: `TUPLAS
+Definición: Las tuplas son listas inmutables.
+No permiten añadir, eliminar o mover elementos (append, remove…)
+Permiten extraer porciones pero eso da como resultado una tupla nueva.
+Permiten comprobar si un elemento se encuentra en la tupla.
+✓ Más rápidas que las listas
+✓ Ocupan menos espacio (mayor optimización)
+✓ Pueden usarse como llaves de un diccionario
+Si necesitamos guardar varios elementos pero en el futuro solo queremos recorrerlos para verlos, entonces nos conviene usar tuplas.
+
+SINTAXIS BASICA DE UNA TUPLA
+# sintaxis de una tupla
+mi_tupla_1 = ("fruta", 45, True)
+print(type(mi_tupla_1))  →  <class 'tuple'>
+# sintaxis de una lista
+mi_lista_1 = ["fruta", 45, True]
+print(type(mi_lista_1))  →  <class 'list'>
+# sintaxis de una tupla sin paréntesis
+mi_tupla_2 = "fruta", 45, True
+print(type(mi_tupla_2))  →  <class 'tuple'>
+#acceder a elementos de un tupla
+mi_tupla_1 = ("fruta", 45, True)
+print(mi_tupla_1[1])  →  45
+
+INMUTABILIDAD
+# mutabilidad de una lista
+mi_lista = [1, 2, 3]
+mi_lista[0] = 4 # reasignacion
+print(mi_lista)  →  [4, 2, 3]
+# inmutabilidad de una tupla
+mi_tupla = (1, 2, 3)
+mi_tupla[0] = 4 # intento de reasignacion
+TypeError: 'tuple' object does not support item assignment
+# inmutabilidad de una tupla
+mi_tupla = (1, 2, 3)
+mi_tupla.append(4)
+AttributeError: 'tuple' object has no attribute 'append'
+mi_tupla.insert(0,4)
+AttributeError: 'tuple' object has no attribute 'insert'
+
+OPTIMIZACIÓN LISTA VS TUPLA
+ESPACIO EN MEMORIA:
+import sys
+mi_lista = [0,1,2, "hola", True]
+mi_tupla = (0,1,2,"hola", True)
+print(sys.getsizeof(mi_lista),'bytes')
+print(sys.getsizeof(mi_tupla),'bytes')
+→ 120 bytes
+→ 80 bytes
+TIEMPO DE CREACIÓN:
+import timeit
+print(timeit.timeit(stmt="[0,1,2,3,4,5]", number = 10000000))
+print(timeit.timeit(stmt="(0,1,2,3,4,5)", number = 10000000))
+→ 0.24537658299993836
+→ 0.037102917000083835
+(la tupla ocupa ~1.5 veces menos espacio y se crea ~8 veces más rápido)
+
+LISTA VS ARRAY VS TUPLA (tabla de propiedades)
+Mutabilidad: Lista=Mutable, Array=Mutable, Tupla=Inmutable
+Acceso a elementos: los 3 por índice o slicing
+Tamaño de la lista: Lista=Dinámico, Array=Fijo, Tupla=Fijo
+Tipo de elementos: Lista=diferentes tipos, Array=mismo tipo, Tupla=diferentes tipos
+Eficiencia: Lista=no tan eficiente, Array=más eficiente que listas, Tupla=más eficiente que listas
+Uso principal: Lista=modificar con frecuencia, Array=eficiencia con mismo tipo, Tupla=elementos inmutables y eficientes
+
+PASAR DE LISTAS A TUPLAS Y VICEVERSA
+mi_lista = [0,1,2, "hola", True]
+print("mi_lista es de tipo...",type(mi_lista))  →  <class 'list'>
+mi_tupla = tuple(mi_lista)
+print("mi_tupla es de tipo...",type(mi_tupla))  →  <class 'tuple'>
+print(mi_tupla)  →  (0, 1, 2, 'hola', True)
+mi_tupla = (0,1,2, "hola", True)
+mi_lista = list(mi_tupla)
+print(mi_lista)  →  [0, 1, 2, 'hola', True]
+
+TRABAJANDO CON TUPLAS
+#acceder a elementos: mi_tupla_1 = ("fruta", 45, True); print(mi_tupla_1[1]) → 45
+# slicing: mi_tupla = (1, 2, 3, 4, 5); subtupla = mi_tupla[1:3]; print(subtupla) # (2, 3)
+# comprobar si un elemento esta en la tupla: print("fruta" in mi_tupla_1) → True; print(100 in mi_tupla_1) → False
+# longitud: mi_tupla = ("fruta", 45, True); longitud = len(mi_tupla); print(longitud) # 3
+# numero de apariciones: mi_tupla.count(45) → 1; mi_tupla.count("perro") → 0; (1,2,3,3,3,4,5).count(3) → 3
+# indice de un elemento: mi_tupla.index(45) → 1 (posición 2, valor 45 en el ejemplo)
+# maximos y minimos: mi_tupla = (3, 1, 4, 1, 5, 9, 2, 6, 5); max(mi_tupla) → 9; min(mi_tupla) → 1
+# ordenar (sorted): mi_tupla = (3, 1, 4, 1, 5, 9, 2, 6, 5); sorted(mi_tupla) → [1, 1, 2, 3, 4, 5, 5, 6, 9] <class 'list'> — ¡RETORNA UNA LISTA! Para mantener tupla: tuple(sorted(mi_tupla)) → (1, 1, 2, 3, 4, 5, 5, 6, 9) <class 'tuple'>
+# invertir (reversed): mi_tupla = (1, 2, 3, 4, 5); reversed(mi_tupla) → <reversed object at ...> <class 'reversed'> — ¡NO es lista ni tupla! Para mantener tupla: tuple(reversed(mi_tupla)) → (5, 4, 3, 2, 1) <class 'tuple'>
+# combinar tuplas con zip: tupla1 = (1, 2, 3); tupla2 = ('a', 'b', 'c'); tupla_combinada = tuple(zip(tupla1, tupla2)) → ((1, 'a'), (2, 'b'), (3, 'c'))
+# acceder a elementos de una tupla de tuplas: mi_tupla = ((1, 'a'), (2, 'b'), (3, 'c')); print(mi_tupla[0][0]) → 1; print(mi_tupla[1][1]) → b; print(mi_tupla[2][0]) → 3
+# slicing de una tupla de tuplas: mi_tupla = ((1, 2, 3), (4, 5, 6), (7, 8, 9)); tupla_interior = mi_tupla[1] → (4, 5, 6); porcion_tupla = mi_tupla[0:2] → ((1, 2, 3), (4, 5, 6)); porcion_interior = mi_tupla[2][0:2] → (7, 8)
+
+TUPLA UNITARIA
+mi_tupla = (1); print(type(mi_tupla)) → <class 'int'>; print(mi_tupla) → 1
+mi_tupla = (1,); print(type(mi_tupla)) → <class 'tuple'>; print(mi_tupla) → (1,)  ← la coma es obligatoria
+
+EMPAQUETAMIENTO Y DESEMPAQUETAMIENTO
+# empaquetamiento
+mi_tupla = "fruta", 45, True
+print(mi_tupla)  →  ('fruta', 45, True)
+# desempaquetamiento
+mi_tupla = ("fruta", 45, True)
+string, entero, booleano = mi_tupla
+print(string) → fruta; print(entero) → 45; print(booleano) → True
+
+DESEMPAQUETAMIENTO: POSIBLES ERRORES
+mi_tupla = ("fruta", 45, True)
+string, entero = mi_tupla
+ValueError: too many values to unpack (expected 2)
+string, entero, booleano, otra_variable = mi_tupla
+ValueError: not enough values to unpack (expected 4, got 3)
+
+REPASO: 1) Diferencias entre array, lista y tupla 2) Inmutabilidad de una tupla 3) Performance tupla vs lista 4) Bases del trabajo con tuplas (acceso a elementos, métodos y funciones, empaquetamiento y desempaquetamiento…) 5) Trabajo con tuplas de tuplas (acceso a elementos y slicing)`,
     },
     {
         id: 'sets',
@@ -184,6 +450,92 @@ export const PRACTICE_PATHS: PracticePath[] = [
             { id: 'set-diferencia', name: 'Diferencia de conjuntos: - y difference()', description: 'set1 - set2 y set1.difference(set2) sobre {1,2,3} y {3,4,5} devuelven ambos {1,2}, los elementos de set1 que NO están en set2.', order: 23 },
             { id: 'set-diferencia-simetrica', name: 'Diferencia simétrica: ^ y symmetric_difference()', description: 'set1 ^ set2 y set1.symmetric_difference(set2) sobre {1,2,3} y {3,4,5} devuelven ambos {1,2,4,5}, los elementos que están en uno de los dos sets pero no en ambos a la vez.', order: 24 },
         ],
+        rawText: `SETS
+Definición: Colecciones no ordenadas de elementos únicos e inmutables.
+Los elementos no llevan un indice asociado
+No podemos reasignar valores a los elementos del set
+Podemos añadir y borrar elementos
+Los elementos son únicos, no hay duplicados
+
+SINTAXIS BASICA DE UN CONJUNTO/SET
+# sintaxis de un set
+mi_set = {'fruta', 45, True}
+print(mi_set)  →  {'fruta', 45, True}
+# Crear set vacío
+mi_set = set()
+print(type(mi_set))  →  <class 'set'>
+CUIDADO → # Crear set vacío
+mi_set = {}
+print(type(mi_set))  →  <class 'dict'>  (¡esto crea un diccionario, NO un set!)
+
+AUSENCIA DE ORDENAMIENTO
+El orden del contenido no se preserva.
+set_frutas = {'manzana', 'naranja', 'plátano'}
+print(set_frutas)  →  {'naranja', 'plátano', 'manzana'}
+Los elementos no llevan asignados un índice:
+set_frutas[0]
+TypeError: 'set' object is not subscriptable
+
+INMUTABILIDAD
+set_frutas[0]="pera"
+TypeError: 'set' object does not support item assignment
+(No podemos reasignar valores)
+
+UNICIDAD
+En un set todos los elementos son únicos. No hay repeticiones.
+set_frutas = {'manzana','manzana', 'naranja', 'plátano'}
+print(set_frutas)  →  {'naranja', 'plátano', 'manzana'}
+
+COMPROBAR PERTENENCIA
+Sets: frutas = {'manzana', 'naranja', 'plátano'}; print('manzana' in frutas) # True; print('fresa' in frutas) # False
+Listas: frutas = ['manzana', 'naranja', 'plátano']; print('manzana' in frutas) # True; print('fresa' in frutas) # False
+Las pruebas de pertenencia son mucho más eficientes en sets que en listas.
+¿Por qué? Los elementos en una lista tienen asociado un índice — para comprobar la pertenencia se recorren todos los elementos de la lista hasta encontrar o no el coincidente. Los elementos en un set no tienen un índice sino un hash (un set es una hash table o tabla de hash). El hash es único para cada elemento, de manera que ese elemento siempre va a estar guardado en el mismo lugar dentro de ese set (en el mismo "bucket"). Python comprueba el bucket correspondiente a ese set y ve si está lleno o no.
+
+PROPIEDADES: LISTA VS ARRAY VS TUPLA VS SETS (tabla)
+Característica | Lista | Array | Tupla | Conjunto (Set)
+Definición: colección ordenada modificable | conjunto homogéneo ordenado modificable | colección ordenada e inmutable | colección de elementos únicos e inmutables
+Sintaxis: mi_lista = [1, 2, 3] | mi_array = np.array([1, 2, 3]) | mi_tupla = (1, 2, 3) | mi_set = {1, 2, 3}
+Índices: Sí | Sí | Sí | No
+Modificable: Sí | Sí | No | Sí
+Homogeneidad: No | Sí | No | No
+Tamaño fijo: No | Sí | Sí | No
+Únicos: No | No | No | Sí
+Iterables: Sí | Sí | Sí | Sí
+
+AÑADIR Y BORRAR ELEMENTOS
+frutas = {'manzana', 'naranja', 'plátano'}
+frutas.add('fresa')
+print(frutas)  →  {'naranja', 'plátano', 'fresa', 'manzana'}
+frutas.remove('naranja') → {'plátano', 'manzana'}
+frutas.discard('naranja') → {'plátano', 'manzana'}
+La diferencia entre remove() y discard(): si intentamos borrar un elemento que no existe en el set, remove() nos devuelve un error:
+frutas.remove('fresa')
+KeyError: 'fresa'
+Mientras que discard() simplemente no hace nada.
+
+PASAR DE LISTAS A SETS Y VICEVERSA
+mi_lista = ['manzana', 'naranja', 'plátano']
+mi_set = set(mi_lista)
+print(mi_set)  →  {'naranja', 'plátano', 'manzana'}
+mi_set = {'manzana', 'naranja', 'plátano'}
+mi_lista = list(mi_set)
+print(mi_lista)  →  ['naranja', 'plátano', 'manzana']
+
+TRABAJANDO CON SETS - EJEMPLO: crear una lista nueva eliminando duplicados
+lista_alumnos = ["Pedro", "Lucas", "Juan", "Lucas"]
+set_alumnos = set(lista_alumnos)
+print(set_alumnos)  →  {'Pedro', 'Lucas', 'Juan'}
+lista_alumnos_unico = list(set_alumnos)
+print(lista_alumnos_unico)  →  ['Pedro', 'Lucas', 'Juan']
+
+OPERACIONES CON SETS
+Unión: set1 = {1, 2, 3}; set2 = {3, 4, 5}; print(set1 | set2) → {1, 2, 3, 4, 5}; print(set1.union(set2)) → {1, 2, 3, 4, 5}
+Intersección: print(set1 & set2) → {3}; print(set1.intersection(set2)) → {3}
+Diferencia: print(set1 - set2) → {1, 2}; print(set1.difference(set2)) → {1, 2}
+Diferencia simétrica: print(set1 ^ set2) → {1, 2, 4, 5}; print(set1.symmetric_difference(set2)) → {1, 2, 4, 5}
+
+REPASO: 1) Qué es un set y su sintaxis 2) Propiedades de un set 3) Índices y hash 4) Añadir y borrar elementos de un set 5) Trabajar con sets y listas 6) Operaciones con sets (unión, intersección y diferencias)`,
     },
 ];
 
