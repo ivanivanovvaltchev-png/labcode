@@ -45,7 +45,7 @@ export function clearTheoryContext(): void {
  * Returns the combined theory text from all uploaded PDFs, trimmed to maxChars.
  * Each document is prefixed with its file name so the AI can distinguish sources.
  */
-export function getContextForPrompt(maxChars = 3000): string | null {
+export function getContextForPrompt(maxChars = 8000): string | null {
     const contexts = loadTheoryContexts();
     if (contexts.length === 0) return null;
     const combined = contexts

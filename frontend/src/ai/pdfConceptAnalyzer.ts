@@ -40,7 +40,7 @@ ${knownBlock}
 FORMATO DE RESPUESTA: Devuelve ÚNICAMENTE un JSON array de strings. Sin texto extra ni markdown.
 ["concepto nuevo 1", "concepto nuevo 2", ...]`;
 
-    const userPrompt = `Material de clase a analizar (extrae conceptos Python NUEVOS, que no estén en la lista de ya conocidos):\n\n${pdfText.slice(0, 5000)}`;
+    const userPrompt = `Material de clase a analizar (extrae conceptos Python NUEVOS, que no estén en la lista de ya conocidos):\n\n${pdfText.slice(0, 16000)}`;
 
     try {
         const response = await fetch(DEEPSEEK_API_URL, {

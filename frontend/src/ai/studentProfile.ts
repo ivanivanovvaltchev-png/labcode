@@ -8,7 +8,15 @@
  *
  * Update this file manually as new topics are completed and validated.
  * DO NOT add topics that have not been finished and tested in real exercises.
+ *
+ * "En progreso" (currently being taught, not yet mastered) topics live in
+ * `../data/practicePaths.ts` instead — one PracticePath per PDF/clase, each
+ * with its own set of real concepts. `masteryEngine.seedFromPracticePaths()`
+ * feeds those into the concept registry at low mastery (Slot 2/3), separate
+ * from the fully-mastered topics below.
  */
+
+import { PRACTICE_PATHS } from '../data/practicePaths';
 
 // ─── Temas completados: Básico Python Temas 1–3 ───────────────────────────────
 
@@ -40,13 +48,26 @@ export const NUMPY_VALIDADO = [
 
 // ─── Lista completa de lo que la IA puede tocar ───────────────────────────────
 
+// "En progreso" concepts (tuplas, sets, variables/tipos avanzado) are included
+// here too so the AI knowledge-block fallback (when no PDF raw text is loaded)
+// still knows the student is actively learning them — see practicePaths.ts.
+const EN_PROGRESO: string[] = PRACTICE_PATHS.flatMap(p =>
+    p.concepts.map(c => `${c.name}: ${c.description}`)
+);
+
 export const HABILIDADES_PERMITIDAS: string[] = [
     ...TEMAS_COMPLETADOS,
     ...NUMPY_VALIDADO,
+    ...EN_PROGRESO,
 ];
 
 // ─── Conceptos absolutamente prohibidos ──────────────────────────────────────
 // If any of these appear in AI output, the response is rejected and retried.
+//
+// NOTE: 'tupla'/'tuple('/'set(' were removed from this list — the student is
+// now actively studying tuples and sets (see practicePaths.ts), so they are
+// no longer forbidden content. Diccionarios/funciones/clases/excepciones etc.
+// remain forbidden until a PDF introduces them.
 
 export const CONCEPTOS_PROHIBIDOS: string[] = [
     'def ',
@@ -77,9 +98,6 @@ export const CONCEPTOS_PROHIBIDOS: string[] = [
     '.keys()',
     '.values()',
     '.items()',
-    'tupla',
-    'tuple(',
-    'set(',
     'class ',
     'lambda',
     'try:',

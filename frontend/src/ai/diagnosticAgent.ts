@@ -375,7 +375,7 @@ ${JSON.stringify(questionsAndAnswers, null, 2)}`;
  * The AI is instructed that its entire knowledge universe is limited to this block.
  */
 function buildKnowledgeBlock(): string {
-    const pdfText = getContextForPrompt(3000);
+    const pdfText = getContextForPrompt(8000);
 
     if (pdfText) {
         return `UNIVERSO CERRADO DE CONOCIMIENTO — MATERIAL TEÓRICO OFICIAL:

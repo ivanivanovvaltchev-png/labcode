@@ -1,5 +1,6 @@
 import { TEMAS_COMPLETADOS, NUMPY_VALIDADO } from '../ai/studentProfile';
 import { loadMetrics, saveMetrics } from './learningMetrics';
+import { PRACTICE_PATHS, getPracticePathById } from '../data/practicePaths';
 
 const REGISTRY_KEY = 'labcode_concept_registry';
 
@@ -105,6 +106,93 @@ export function seedConceptRegistry(pathId: string): void {
     if (changed) saveMetrics(metrics);
 }
 
+/**
+ * Seeds the concept registry with the real concepts from every curated
+ * PracticePath (../data/practicePaths.ts) — one PDF/clase per path.
+ *
+ * These are "en progreso": the student has just seen this material in class
+ * but hasn't drilled it yet, so they start at 25% mastery (Slot 3 — Learn),
+ * distinct from the fully mastered TEMAS_COMPLETADOS/NUMPY_VALIDADO (75%/50%).
+ *
+ * Idempotent — only adds concepts that aren't already tracked by name, so
+ * it's safe to call every time a new PracticePath is added to the data file.
+ */
+export function seedFromPracticePaths(pathId: string): void {
+    const registry = loadConceptRegistry(pathId);
+    const existingNames = new Set(registry.concepts.map(c => c.name));
+    const now = Date.now();
+    let added = false;
+
+    const metrics = loadMetrics(pathId);
+    for (const path of PRACTICE_PATHS) {
+        for (const concept of path.concepts) {
+            if (existingNames.has(concept.name)) continue;
+            registry.concepts.push({
+                name: concept.name,
+                source: 'pdf',
+                addedAt: now,
+                initialMastery: 25,
+            });
+            existingNames.add(concept.name);
+            added = true;
+
+            if (!metrics.skillMastery[concept.name]) {
+                metrics.skillMastery[concept.name] = {
+                    skillId: concept.name,
+                    skillName: concept.name,
+                    masteryPct: 25,
+                    practiceCount: 0,
+                    lastPracticed: '',
+                };
+            }
+        }
+    }
+
+    if (added) {
+        saveConceptRegistry(registry);
+        saveMetrics(metrics);
+    }
+}
+
+/**
+ * Returns per-concept mastery plus an aggregate percentage for a single
+ * PracticePath — used by the "Mejora" panel to show progress per PDF.
+ */
+export function getPracticePathProgress(pathId: string, practicePathId: string): {
+    conceptName: string;
+    masteryPct: number;
+}[] {
+    const practicePath = getPracticePathById(practicePathId);
+    if (!practicePath) return [];
+    const metrics = loadMetrics(pathId);
+    return practicePath.concepts.map(c => ({
+        conceptName: c.name,
+        masteryPct: metrics.skillMastery[c.name]?.masteryPct ?? 25,
+    }));
+}
+
+/**
+ * Picks one concept per difficulty from a single PracticePath's own concepts
+ * (sorted by mastery): weakest → "difícil" (needs learning), middle →
+ * "medio" (in practice), strongest → "fácil" (review). Used by the "Mejora"
+ * panel to scope practice to exactly one PDF instead of the whole registry.
+ */
+export function getFocusedConceptsForPrompt(pathId: string, practicePathId: string): {
+    facil: string | null;
+    medio: string | null;
+    dificil: string | null;
+} {
+    const progress = getPracticePathProgress(pathId, practicePathId);
+    if (progress.length === 0) return { facil: null, medio: null, dificil: null };
+
+    const sorted = [...progress].sort((a, b) => a.masteryPct - b.masteryPct);
+    return {
+        dificil: sorted[0].conceptName,
+        medio: sorted[Math.floor(sorted.length / 2)].conceptName,
+        facil: sorted[sorted.length - 1].conceptName,
+    };
+}
+
 // ─── Concept management ───────────────────────────────────────────────────────
 
 /**
@@ -151,15 +239,18 @@ export function ensureConceptTracked(pathId: string, skillName: string): void {
 
 /**
  * Returns all concepts in the registry for a given path.
- * Auto-seeds from the hardcoded profile if the registry is empty.
+ * Auto-seeds from the hardcoded profile if the registry is empty, and always
+ * merges in any PracticePath concepts (../data/practicePaths.ts) not yet
+ * tracked — this way adding a new curated PDF path picks it up immediately
+ * for existing students too, not just brand-new registries.
  */
 export function getRegistryConcepts(pathId: string): TrackedConcept[] {
     const registry = loadConceptRegistry(pathId);
     if (registry.concepts.length === 0) {
         seedConceptRegistry(pathId);
-        return loadConceptRegistry(pathId).concepts;
     }
-    return registry.concepts;
+    seedFromPracticePaths(pathId);
+    return loadConceptRegistry(pathId).concepts;
 }
 
 // ─── Code analysis integration ────────────────────────────────────────────────

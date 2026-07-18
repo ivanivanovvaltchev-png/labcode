@@ -9,6 +9,7 @@ import { getPathById, isSkillMastered } from '../../data/careerPaths';
 import { generateSkillExercise } from '../../ai/diagnosticAgent';
 import { recordMentorSession, getActiveSkills } from '../../lib/learningMetrics';
 import { ensureConceptTracked, getSlotConceptsForPrompt } from '../../lib/masteryEngine';
+import { getPracticePathById } from '../../data/practicePaths';
 
 const STORAGE_KEY = 'mentor_session';
 
@@ -79,6 +80,7 @@ const MentorPage: React.FC = () => {
     const paramTaskDescMedio  = searchParams.get('taskDescMedio');
     const paramTaskDescDificil = searchParams.get('taskDescDificil');
     const paramPracticeDiff    = (searchParams.get('practiceDifficulty') ?? 'dificil') as 'facil' | 'medio' | 'dificil';
+    const paramFocusPathId     = searchParams.get('focusPathId');    // set from Mentor → Mejora
     const hasSkillContext = !!(paramTaskTitle || paramSkillRef);
     const taskIndex   = paramTaskIndex  !== null ? parseInt(paramTaskIndex)  : null;
     const totalTasks  = paramTotalTasks !== null ? parseInt(paramTotalTasks) : null;
@@ -112,6 +114,10 @@ const MentorPage: React.FC = () => {
     const [savedTaskId, setSavedTaskId] = useState<string | null>(null);
     const [savedTaskIndex, setSavedTaskIndex] = useState<number | null>(null);
     const [savedTotalTasks, setSavedTotalTasks] = useState<number | null>(null);
+    // Persists across the session even after URL params are cleared — set once
+    // when arriving from Mentor → Mejora, so every AI call in this session stays
+    // scoped to that single PDF/clase instead of the full student profile.
+    const [focusPathId] = useState<string | null>(paramFocusPathId);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const getKnowledgeBlock = () => {
@@ -119,14 +125,25 @@ const MentorPage: React.FC = () => {
         const knowledgeBlock = buildKnowledgeBlock(profile);
         const pathId = loadSelectedPath();
         const path = pathId ? getPathById(pathId) : null;
+        let block = knowledgeBlock;
         if (path && profile) {
             const ass = loadSelfAssessments(pathId!);
             const gapSkills = path.skills
                 .filter(s => s.importance === 'critical' && !isSkillMastered(s, profile.concepts, ass))
                 .map(s => s.name);
-            return knowledgeBlock + buildPathBlock(path.jobTitle, gapSkills);
+            block = knowledgeBlock + buildPathBlock(path.jobTitle, gapSkills);
         }
-        return knowledgeBlock;
+        if (focusPathId) {
+            const focusPath = getPracticePathById(focusPathId);
+            if (focusPath) {
+                block += `\n\nMODO "MEJORA" — FOCO EXCLUSIVO (CRÍTICO):
+El estudiante ha elegido centrarse SOLO en el tema "${focusPath.title}" (del material "${focusPath.sourceFile}") porque no lo tiene claro todavía.
+IGNORA el resto de su perfil para este ejercicio. Usa ÚNICAMENTE estos conceptos, tal y como se explican en el PDF original:
+${focusPath.concepts.map(c => `  • ${c.name}: ${c.description}`).join('\n')}
+No introduzcas conceptos de otros temas ni mezcles con el resto del currículo.`;
+            }
+        }
+        return block;
     };
 
     // Auto-generate exercise when coming from PathDashboard
@@ -175,10 +192,14 @@ const MentorPage: React.FC = () => {
                 const pathId = loadSelectedPath();
                 const path = pathId ? getPathById(pathId) : null;
                 const profile = loadKnowledgeProfile();
+                const focusPath = paramFocusPathId ? getPracticePathById(paramFocusPathId) : null;
+                const knownConcepts = focusPath
+                    ? focusPath.concepts.map(c => `${c.name}: ${c.description}`)
+                    : (profile?.concepts ?? []);
                 generateSkillExercise(
                     paramSkillRef ?? paramTaskTitle ?? '',
                     path?.title ?? 'Programación',
-                    profile?.concepts ?? []
+                    knownConcepts
                 ).then(async generatedExercise => {
                     setExercise(generatedExercise);
                     setIsGeneratingExercise(false);

@@ -143,6 +143,18 @@ const Navigation: React.FC<NavigationProps> = ({ user = 'Estudiante', userId }) 
                                         <div className="text-xs text-violet-300/50">Ejercicios según tu nivel actual</div>
                                     </div>
                                 </Link>
+                                <div className="border-t border-violet-500/20" />
+                                <Link
+                                    to="/mejora"
+                                    onClick={() => setMentorOpen(false)}
+                                    className="flex items-center gap-2.5 px-4 py-3 text-sm text-violet-300 hover:bg-violet-900/30 transition-colors"
+                                >
+                                    <span>🎯</span>
+                                    <div>
+                                        <div className="font-semibold">Mejora</div>
+                                        <div className="text-xs text-violet-300/50">Centrarte en un PDF/tema concreto</div>
+                                    </div>
+                                </Link>
                             </div>
                         )}
                     </div>
