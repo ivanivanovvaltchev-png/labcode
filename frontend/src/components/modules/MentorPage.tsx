@@ -9,7 +9,7 @@ import { getPathById, isSkillMastered } from '../../data/careerPaths';
 import { generateSkillExercise } from '../../ai/diagnosticAgent';
 import { recordMentorSession, getActiveSkills } from '../../lib/learningMetrics';
 import { ensureConceptTracked, getSlotConceptsForPrompt } from '../../lib/masteryEngine';
-import { getPracticePathById } from '../../data/practicePaths';
+import { getMejoraSectionById } from '../../lib/mejoraSections';
 
 const STORAGE_KEY = 'mentor_session';
 
@@ -134,7 +134,7 @@ const MentorPage: React.FC = () => {
             block = knowledgeBlock + buildPathBlock(path.jobTitle, gapSkills);
         }
         if (focusPathId) {
-            const focusPath = getPracticePathById(focusPathId);
+            const focusPath = getMejoraSectionById(focusPathId);
             if (focusPath) {
                 block += `\n\nMODO "MEJORA" — FOCO EXCLUSIVO (CRÍTICO):
 El estudiante ha elegido centrarse SOLO en el tema "${focusPath.title}" (del material "${focusPath.sourceFile}") porque no lo tiene claro todavía.
@@ -196,7 +196,7 @@ No introduzcas conceptos de otros temas ni mezcles con el resto del currículo.`
                 const pathId = loadSelectedPath();
                 const path = pathId ? getPathById(pathId) : null;
                 const profile = loadKnowledgeProfile();
-                const focusPath = paramFocusPathId ? getPracticePathById(paramFocusPathId) : null;
+                const focusPath = paramFocusPathId ? getMejoraSectionById(paramFocusPathId) : null;
                 const knownConcepts = focusPath
                     ? focusPath.concepts.map(c => `${c.name}: ${c.description}`)
                     : (profile?.concepts ?? []);

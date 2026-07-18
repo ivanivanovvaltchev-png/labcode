@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { loadSelectedPath } from '../../lib/selectedPath';
-import { PRACTICE_PATHS } from '../../data/practicePaths';
+import { getAllMejoraSections } from '../../lib/mejoraSections';
 import { getPracticePathProgress, getFocusedConceptsForPrompt } from '../../lib/masteryEngine';
 
 type Difficulty = 'facil' | 'medio' | 'dificil';
@@ -44,7 +44,8 @@ const ImprovePage: React.FC = () => {
     const [difficulty, setDifficulty] = useState<Difficulty>('dificil');
     const [conceptsOpen, setConceptsOpen] = useState(false);
 
-    const selectedPath = selectedId ? PRACTICE_PATHS.find(p => p.id === selectedId) ?? null : null;
+    const sections = getAllMejoraSections();
+    const selectedPath = selectedId ? sections.find(p => p.id === selectedId) ?? null : null;
     const focused = pathId && selectedId ? getFocusedConceptsForPrompt(pathId, selectedId) : null;
 
     const conceptFor = (d: Difficulty): string | null => {
@@ -88,8 +89,14 @@ const ImprovePage: React.FC = () => {
                     </p>
                 </div>
 
+                {sections.length === 0 && (
+                    <p className="text-sm text-light/30 text-center py-8">
+                        Todavía no hay PDFs disponibles. Súbelos en "Mi Perfil" o pídele a Claude que los revise.
+                    </p>
+                )}
+
                 <div className="space-y-3">
-                    {PRACTICE_PATHS.map(path => {
+                    {sections.map(path => {
                         const pct = aggregateMastery(pathId, path.id);
                         return (
                             <button
@@ -103,6 +110,11 @@ const ImprovePage: React.FC = () => {
                                         <span className="text-xs font-normal bg-violet-900/30 border border-violet-500/20 text-violet-300 px-2 py-0.5 rounded-full">
                                             {path.concepts.length} conceptos
                                         </span>
+                                        {!path.curated && (
+                                            <span className="text-xs font-normal bg-amber-900/30 border border-amber-500/30 text-amber-300 px-2 py-0.5 rounded-full">
+                                                sin revisar
+                                            </span>
+                                        )}
                                     </div>
                                     <span className="text-xs font-mono text-light/40 flex-shrink-0">{pct}%</span>
                                 </div>

@@ -1,6 +1,6 @@
 import { TEMAS_COMPLETADOS, NUMPY_VALIDADO } from '../ai/studentProfile';
 import { loadMetrics, saveMetrics } from './learningMetrics';
-import { PRACTICE_PATHS, getPracticePathById } from '../data/practicePaths';
+import { getAllMejoraSections, getMejoraSectionById } from './mejoraSections';
 
 const REGISTRY_KEY = 'labcode_concept_registry';
 
@@ -107,15 +107,18 @@ export function seedConceptRegistry(pathId: string): void {
 }
 
 /**
- * Seeds the concept registry with the real concepts from every curated
- * PracticePath (../data/practicePaths.ts) — one PDF/clase per path.
+ * Seeds the concept registry with the real concepts from every Mejora
+ * section (../lib/mejoraSections.ts) — one PDF per section, whether it's
+ * hand-curated (practicePaths.ts) or a raw upload from "Mi Perfil" that
+ * hasn't been reviewed yet. Each section's concepts stay scoped to that
+ * section only — nothing here ever merges concepts across different PDFs.
  *
  * These are "en progreso": the student has just seen this material in class
  * but hasn't drilled it yet, so they start at 25% mastery (Slot 3 — Learn),
  * distinct from the fully mastered TEMAS_COMPLETADOS/NUMPY_VALIDADO (75%/50%).
  *
  * Idempotent — only adds concepts that aren't already tracked by name, so
- * it's safe to call every time a new PracticePath is added to the data file.
+ * it's safe to call every time a new PDF is added (curated or uploaded).
  */
 export function seedFromPracticePaths(pathId: string): void {
     const registry = loadConceptRegistry(pathId);
@@ -124,8 +127,8 @@ export function seedFromPracticePaths(pathId: string): void {
     let added = false;
 
     const metrics = loadMetrics(pathId);
-    for (const path of PRACTICE_PATHS) {
-        for (const concept of path.concepts) {
+    for (const section of getAllMejoraSections()) {
+        for (const concept of section.concepts) {
             if (existingNames.has(concept.name)) continue;
             registry.concepts.push({
                 name: concept.name,
@@ -156,33 +159,35 @@ export function seedFromPracticePaths(pathId: string): void {
 
 /**
  * Returns per-concept mastery plus an aggregate percentage for a single
- * PracticePath — used by the "Mejora" panel to show progress per PDF.
+ * Mejora section (one PDF) — used by the "Mejora" panel to show progress
+ * per PDF, never mixing concepts from other PDFs.
  */
-export function getPracticePathProgress(pathId: string, practicePathId: string): {
+export function getPracticePathProgress(pathId: string, sectionId: string): {
     conceptName: string;
     masteryPct: number;
 }[] {
-    const practicePath = getPracticePathById(practicePathId);
-    if (!practicePath) return [];
+    const section = getMejoraSectionById(sectionId);
+    if (!section) return [];
     const metrics = loadMetrics(pathId);
-    return practicePath.concepts.map(c => ({
+    return section.concepts.map(c => ({
         conceptName: c.name,
         masteryPct: metrics.skillMastery[c.name]?.masteryPct ?? 25,
     }));
 }
 
 /**
- * Picks one concept per difficulty from a single PracticePath's own concepts
- * (sorted by mastery): weakest → "difícil" (needs learning), middle →
- * "medio" (in practice), strongest → "fácil" (review). Used by the "Mejora"
- * panel to scope practice to exactly one PDF instead of the whole registry.
+ * Picks one concept per difficulty from a single Mejora section's own
+ * concepts (sorted by mastery): weakest → "difícil" (needs learning),
+ * middle → "medio" (in practice), strongest → "fácil" (review). Used by
+ * the "Mejora" panel to scope practice to exactly one PDF instead of the
+ * whole registry or other PDFs.
  */
-export function getFocusedConceptsForPrompt(pathId: string, practicePathId: string): {
+export function getFocusedConceptsForPrompt(pathId: string, sectionId: string): {
     facil: string | null;
     medio: string | null;
     dificil: string | null;
 } {
-    const progress = getPracticePathProgress(pathId, practicePathId);
+    const progress = getPracticePathProgress(pathId, sectionId);
     if (progress.length === 0) return { facil: null, medio: null, dificil: null };
 
     const sorted = [...progress].sort((a, b) => a.masteryPct - b.masteryPct);
