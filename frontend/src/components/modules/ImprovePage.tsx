@@ -42,6 +42,7 @@ const ImprovePage: React.FC = () => {
     const pathId = loadSelectedPath();
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [difficulty, setDifficulty] = useState<Difficulty>('dificil');
+    const [conceptsOpen, setConceptsOpen] = useState(false);
 
     const selectedPath = selectedId ? PRACTICE_PATHS.find(p => p.id === selectedId) ?? null : null;
     const focused = pathId && selectedId ? getFocusedConceptsForPrompt(pathId, selectedId) : null;
@@ -99,12 +100,25 @@ const ImprovePage: React.FC = () => {
                                 <div className="flex items-center justify-between gap-3 mb-1">
                                     <div className="font-bold text-sm text-light flex items-center gap-2">
                                         <span>{path.emoji}</span> {path.title}
+                                        <span className="text-xs font-normal bg-violet-900/30 border border-violet-500/20 text-violet-300 px-2 py-0.5 rounded-full">
+                                            {path.concepts.length} conceptos
+                                        </span>
                                     </div>
                                     <span className="text-xs font-mono text-light/40 flex-shrink-0">{pct}%</span>
                                 </div>
                                 <p className="text-xs text-light/40 mb-2 leading-relaxed">{path.description}</p>
-                                <div className="w-full h-1.5 bg-light/10 rounded-full overflow-hidden mb-1.5">
+                                <div className="w-full h-1.5 bg-light/10 rounded-full overflow-hidden mb-2">
                                     <div className="h-full bg-violet-400 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                                </div>
+                                <div className="flex flex-wrap gap-1.5 mb-2">
+                                    {path.concepts.slice(0, 6).map(c => (
+                                        <span key={c.id} className="text-xs bg-[#0f0f0f] border border-light/10 text-light/50 px-2 py-0.5 rounded-full truncate max-w-[220px]">
+                                            {c.name}
+                                        </span>
+                                    ))}
+                                    {path.concepts.length > 6 && (
+                                        <span className="text-xs text-light/30 px-2 py-0.5">+{path.concepts.length - 6} más</span>
+                                    )}
                                 </div>
                                 <p className="text-xs text-light/25 truncate">📄 {path.sourceFile}</p>
                             </button>
@@ -164,6 +178,27 @@ const ImprovePage: React.FC = () => {
                     usando solo el contenido de <span className="text-light/50">{selectedPath.sourceFile}</span>.
                 </p>
             )}
+
+            <div className="mt-6">
+                <button
+                    onClick={() => setConceptsOpen(v => !v)}
+                    className="w-full flex items-center justify-between bg-[#1a1a1a] border border-light/10 rounded-2xl px-5 py-3 text-sm text-light/40 hover:text-light/60 transition-colors"
+                >
+                    <span>📋 Ver los {selectedPath.concepts.length} conceptos de este PDF</span>
+                    <span>{conceptsOpen ? '▲' : '▼'}</span>
+                </button>
+                {conceptsOpen && pathId && (
+                    <div className="mt-2 space-y-1.5">
+                        {getPracticePathProgress(pathId, selectedPath.id).map((c, i) => (
+                            <div key={c.conceptName} className="flex items-center gap-3 bg-[#1a1a1a] border border-light/10 rounded-xl px-4 py-2.5">
+                                <span className="text-xs font-mono text-light/25 w-6 flex-shrink-0">{i + 1}</span>
+                                <span className="text-sm text-light/70 flex-1">{c.conceptName}</span>
+                                <span className="text-xs font-mono text-light/40 flex-shrink-0">{c.masteryPct}%</span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
         </div>
     );
 };

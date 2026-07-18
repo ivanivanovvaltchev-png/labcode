@@ -68,6 +68,9 @@ export const PRACTICE_PATHS: PracticePath[] = [
             { id: 'vto-orden-operaciones', name: 'Orden de las operaciones matemáticas', description: 'Python sigue el orden matemático estándar: paréntesis, exponentes, multiplicación/división, suma/resta.', order: 20 },
             { id: 'vto-floats-imprecision', name: 'Floats y su imprecisión (0.1 + 0.2 ≠ 0.3 exacto)', description: 'Los decimales se representan de forma imprecisa en cualquier lenguaje de programación; 0.2 + 0.1 puede dar 0.30000000000000004.', order: 21 },
             { id: 'vto-comentarios', name: 'Comentarios con # y strings sueltos ignorados', description: 'La almohadilla # marca una línea como comentario; un string no asignado a ninguna variable también es ignorado por el intérprete.', order: 22 },
+            { id: 'vto-python-interpretado', name: 'Python es un lenguaje interpretado, no compilado', description: 'Un programa Python se ejecuta directamente con un intérprete (no se compila antes); esto permite ejecutar instrucciones de forma interactiva línea a línea.', order: 23 },
+            { id: 'vto-linea-comandos-vs-scripts', name: 'Línea de comandos vs scripts .py', description: 'Se puede escribir Python directamente en la terminal (línea a línea, modo interactivo >>>) o guardar el código en un archivo .py (script) para ejecutarlo completo de una vez.', order: 24 },
+            { id: 'vto-modificacion-variables', name: 'Modificar una variable ya creada', description: 'Una variable se puede reasignar usando su propio valor anterior, ej. numero_entero = numero_entero + 4, o simplemente dándole un valor nuevo distinto del inicial.', order: 25 },
         ],
     },
     {
@@ -92,6 +95,8 @@ export const PRACTICE_PATHS: PracticePath[] = [
             { id: 'tup-unitaria', name: 'Tupla unitaria: la coma final es obligatoria', description: '(1) es solo un int entre paréntesis; (1,) con la coma es una tupla de un elemento.', order: 13 },
             { id: 'tup-empaquetado-desempaquetado', name: 'Empaquetado y desempaquetado (packing/unpacking)', description: 'mi_tupla = "fruta", 45, True empaqueta valores en una tupla; a, b, c = mi_tupla desempaqueta cada valor en una variable distinta.', order: 14 },
             { id: 'tup-errores-desempaquetado', name: 'Errores de desempaquetado (ValueError)', description: 'Si el número de variables no coincide con el de elementos de la tupla, Python lanza ValueError ("too many values to unpack" o "not enough values to unpack").', order: 15 },
+            { id: 'tup-como-llave-diccionario', name: 'Tuplas como llaves de un diccionario', description: 'Al ser inmutables, las tuplas pueden usarse como clave (key) de un diccionario, algo que una lista no puede hacer.', order: 16 },
+            { id: 'tup-cuando-usar', name: 'Cuándo conviene usar una tupla', description: 'Cuando necesitamos guardar varios elementos pero en el futuro solo queremos recorrerlos/leerlos sin modificarlos, conviene usar una tupla en vez de una lista (más rápida y ocupa menos memoria).', order: 17 },
         ],
     },
     {
@@ -115,7 +120,8 @@ export const PRACTICE_PATHS: PracticePath[] = [
             { id: 'set-interseccion', name: 'Intersección de conjuntos: & e intersection()', description: 'set1 & set2 o set1.intersection(set2) devuelven solo los elementos presentes en AMBOS sets.', order: 12 },
             { id: 'set-diferencia', name: 'Diferencia de conjuntos: - y difference()', description: 'set1 - set2 o set1.difference(set2) devuelven los elementos de set1 que NO están en set2.', order: 13 },
             { id: 'set-diferencia-simetrica', name: 'Diferencia simétrica: ^ y symmetric_difference()', description: 'set1 ^ set2 o set1.symmetric_difference(set2) devuelven los elementos que están en uno de los dos sets pero no en ambos a la vez.', order: 14 },
-            { id: 'set-tabla-comparativa', name: 'Lista vs array vs tupla vs set: tabla comparativa', description: 'Mutabilidad, tamaño fijo/dinámico, homogeneidad, unicidad y eficiencia son los ejes para elegir la estructura correcta según el caso de uso.', order: 15 },
+            { id: 'set-tabla-comparativa', name: 'Lista vs array vs tupla vs set: tabla comparativa', description: 'Comparación por mutabilidad, presencia de índices, homogeneidad, tamaño fijo/dinámico y unicidad: listas y sets son modificables, tuplas y arrays no; solo los arrays exigen mismo tipo; solo los sets garantizan unicidad y carecen de índices.', order: 15 },
+            { id: 'set-eliminar-duplicados-lista', name: 'Eliminar duplicados de una lista usando un set', description: 'Convertir una lista en set (set(mi_lista)) elimina automáticamente los duplicados; luego se puede reconvertir a list() si se necesita el resultado como lista.', order: 16 },
         ],
     },
 ];
