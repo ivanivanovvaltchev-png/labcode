@@ -95,51 +95,22 @@ const ImprovePage: React.FC = () => {
                     </p>
                 )}
 
-                <div className="space-y-3">
+                <div className="space-y-2">
                     {sections.map(path => {
                         const pct = aggregateMastery(pathId, path.id);
                         return (
                             <button
                                 key={path.id}
                                 onClick={() => { setSelectedId(path.id); setDifficulty('dificil'); }}
-                                className="w-full text-left border border-light/10 hover:border-violet-500/40 bg-[#1a1a1a] hover:bg-violet-900/10 rounded-xl p-4 transition-all"
+                                className="w-full text-left border border-light/10 hover:border-violet-500/40 bg-[#1a1a1a] hover:bg-violet-900/10 rounded-xl px-4 py-3 transition-all"
                             >
-                                <div className="flex items-center justify-between gap-3 mb-1">
-                                    <div className="font-bold text-sm text-light flex items-center gap-2">
-                                        <span>{path.emoji}</span> {path.title}
-                                        <span className="text-xs font-normal bg-violet-900/30 border border-violet-500/20 text-violet-300 px-2 py-0.5 rounded-full">
-                                            {path.concepts.length} conceptos
-                                        </span>
-                                        {!path.curated && (
-                                            <span className="text-xs font-normal bg-amber-900/30 border border-amber-500/30 text-amber-300 px-2 py-0.5 rounded-full">
-                                                sin revisar
-                                            </span>
-                                        )}
-                                    </div>
+                                <div className="flex items-center justify-between gap-3 mb-1.5">
+                                    <span className="font-bold text-sm text-light truncate">{path.emoji} {path.title}</span>
                                     <span className="text-xs font-mono text-light/40 flex-shrink-0">{pct}%</span>
                                 </div>
-                                <p className="text-xs text-light/40 mb-2 leading-relaxed">{path.description}</p>
-                                <div className="w-full h-1.5 bg-light/10 rounded-full overflow-hidden mb-2">
+                                <div className="w-full h-1.5 bg-light/10 rounded-full overflow-hidden">
                                     <div className="h-full bg-violet-400 rounded-full transition-all" style={{ width: `${pct}%` }} />
                                 </div>
-                                <div className="flex flex-wrap gap-1.5 mb-2">
-                                    {path.concepts.slice(0, 6).map(c => (
-                                        <span key={c.id} className="text-xs bg-[#0f0f0f] border border-light/10 text-light/50 px-2 py-0.5 rounded-full truncate max-w-[220px]">
-                                            {c.name}
-                                        </span>
-                                    ))}
-                                    {path.concepts.length > 6 && (
-                                        <span className="text-xs text-light/30 px-2 py-0.5">+{path.concepts.length - 6} más</span>
-                                    )}
-                                </div>
-                                {path.prerequisites.length > 0 && (
-                                    <p className="text-xs text-amber-400/70 mb-1">
-                                        🔒 Requiere antes: {path.prerequisites.map(id => sections.find(s => s.id === id)?.title ?? id).join(', ')}
-                                    </p>
-                                )}
-                                <p className="text-xs text-light/25 truncate">
-                                    📄 {path.sources.map(s => s.fileName).join(' + ')}
-                                </p>
                             </button>
                         );
                     })}
