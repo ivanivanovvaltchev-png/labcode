@@ -132,7 +132,14 @@ const ImprovePage: React.FC = () => {
                                         <span className="text-xs text-light/30 px-2 py-0.5">+{path.concepts.length - 6} más</span>
                                     )}
                                 </div>
-                                <p className="text-xs text-light/25 truncate">📄 {path.sourceFile}</p>
+                                {path.prerequisites.length > 0 && (
+                                    <p className="text-xs text-amber-400/70 mb-1">
+                                        🔒 Requiere antes: {path.prerequisites.map(id => sections.find(s => s.id === id)?.title ?? id).join(', ')}
+                                    </p>
+                                )}
+                                <p className="text-xs text-light/25 truncate">
+                                    📄 {path.sources.map(s => s.fileName).join(' + ')}
+                                </p>
                             </button>
                         );
                     })}
@@ -153,7 +160,15 @@ const ImprovePage: React.FC = () => {
 
             <div className="mb-8">
                 <h1 className="text-2xl font-bold text-light mb-1">{selectedPath.emoji} {selectedPath.title}</h1>
-                <p className="text-light/50 text-sm">{selectedPath.description}</p>
+                <p className="text-light/50 text-sm mb-2">{selectedPath.description}</p>
+                {selectedPath.reason && (
+                    <p className="text-xs text-light/30 italic mb-1">{selectedPath.reason}</p>
+                )}
+                {selectedPath.prerequisites.length > 0 && (
+                    <p className="text-xs text-amber-400/70">
+                        🔒 Requiere antes: {selectedPath.prerequisites.map(id => sections.find(s => s.id === id)?.title ?? id).join(', ')}
+                    </p>
+                )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
@@ -187,7 +202,8 @@ const ImprovePage: React.FC = () => {
             {currentConcept && (
                 <p className="text-center text-xs text-light/30 mt-3">
                     Se generará un ejercicio sobre <span className="text-light/50 font-mono">{currentConcept}</span>,
-                    usando solo el contenido de <span className="text-light/50">{selectedPath.sourceFile}</span>.
+                    usando solo el contenido de{' '}
+                    <span className="text-light/50">{selectedPath.sources.map(s => s.fileName).join(', ')}</span>.
                 </p>
             )}
 
@@ -196,7 +212,7 @@ const ImprovePage: React.FC = () => {
                     onClick={() => setConceptsOpen(v => !v)}
                     className="w-full flex items-center justify-between bg-[#1a1a1a] border border-light/10 rounded-2xl px-5 py-3 text-sm text-light/40 hover:text-light/60 transition-colors"
                 >
-                    <span>📋 Ver los {selectedPath.concepts.length} conceptos de este PDF</span>
+                    <span>📋 Ver los {selectedPath.concepts.length} conceptos de este bloque</span>
                     <span>{conceptsOpen ? '▲' : '▼'}</span>
                 </button>
                 {conceptsOpen && pathId && (

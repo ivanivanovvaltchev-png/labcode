@@ -16,7 +16,7 @@
  * from the fully-mastered topics below.
  */
 
-import { PRACTICE_PATHS } from '../data/practicePaths';
+import { LEARNING_BLOCKS } from '../data/practicePaths';
 
 // ─── Temas completados: Básico Python Temas 1–3 ───────────────────────────────
 
@@ -51,7 +51,7 @@ export const NUMPY_VALIDADO = [
 // "En progreso" concepts (tuplas, sets, variables/tipos avanzado) are included
 // here too so the AI knowledge-block fallback (when no PDF raw text is loaded)
 // still knows the student is actively learning them — see practicePaths.ts.
-const EN_PROGRESO: string[] = PRACTICE_PATHS.flatMap(p =>
+const EN_PROGRESO: string[] = LEARNING_BLOCKS.flatMap(p =>
     p.concepts.map(c => `${c.name}: ${c.description}`)
 );
 

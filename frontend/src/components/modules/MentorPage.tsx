@@ -136,15 +136,17 @@ const MentorPage: React.FC = () => {
         if (focusPathId) {
             const focusPath = getMejoraSectionById(focusPathId);
             if (focusPath) {
+                const sourceNames = focusPath.sources.map(s => s.fileName).join(', ');
+                const sourcesText = focusPath.sources
+                    .map(s => `--- INICIO CONTENIDO REAL DEL PDF "${s.fileName}" ---\n${s.rawText}\n--- FIN CONTENIDO REAL DEL PDF ---`)
+                    .join('\n\n');
                 block += `\n\nMODO "MEJORA" — FOCO EXCLUSIVO (CRÍTICO):
-El estudiante ha elegido centrarse SOLO en el tema "${focusPath.title}" (del material "${focusPath.sourceFile}") porque no lo tiene claro todavía.
-IGNORA el resto de su perfil para este ejercicio. Tu ÚNICA fuente de verdad es el contenido real de este PDF, reproducido íntegro a continuación — básate en él exactamente como está explicado, con los mismos ejemplos, métodos y sintaxis, sin inventar ni añadir nada que no aparezca aquí:
+El estudiante ha elegido centrarse SOLO en el bloque "${focusPath.title}" (material: ${sourceNames}) porque no lo tiene claro todavía.
+IGNORA el resto de su perfil para este ejercicio. Tu ÚNICA fuente de verdad es el contenido real de estos PDFs, reproducido íntegro a continuación — básate en él exactamente como está explicado, con los mismos ejemplos, métodos y sintaxis, sin inventar ni añadir nada que no aparezca aquí:
 
---- INICIO CONTENIDO REAL DEL PDF "${focusPath.sourceFile}" ---
-${focusPath.rawText}
---- FIN CONTENIDO REAL DEL PDF ---
+${sourcesText}
 
-No introduzcas conceptos de otros temas ni mezcles con el resto del currículo.`;
+No introduzcas conceptos de otros bloques ni mezcles con el resto del currículo.`;
             }
         }
         return block;
