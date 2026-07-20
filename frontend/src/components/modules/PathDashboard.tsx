@@ -310,7 +310,7 @@ const PathDashboard: React.FC = () => {
                             </p>
                         )}
                     </div>
-                    {dailyPlan && !isGeneratingPlan && allTasksDone && (
+                    {!isGeneratingPlan && (
                         <div className="flex items-center gap-2">
                             <select
                                 value={dailyFocusBlockId ?? ''}
@@ -323,15 +323,22 @@ const PathDashboard: React.FC = () => {
                                     <option key={s.id} value={s.id}>{s.emoji} {s.title}</option>
                                 ))}
                             </select>
-                            <button
-                                onClick={handleGeneratePlan}
-                                className="text-sm text-light/30 hover:text-light/60 transition-colors border border-light/10 px-4 py-2 rounded-lg whitespace-nowrap"
-                            >
-                                🔄 Nuevo plan
-                            </button>
+                            {dailyPlan && allTasksDone && (
+                                <button
+                                    onClick={handleGeneratePlan}
+                                    className="text-sm text-light/30 hover:text-light/60 transition-colors border border-light/10 px-4 py-2 rounded-lg whitespace-nowrap"
+                                >
+                                    🔄 Nuevo plan
+                                </button>
+                            )}
                         </div>
                     )}
                 </div>
+                {dailyPlan && !allTasksDone && (
+                    <p className="text-xs text-light/25 -mt-4 mb-5">
+                        El bloque elegido arriba se aplicará al próximo plan (cuando termines las 3 tarjetas de hoy o pulses "Nuevo plan").
+                    </p>
+                )}
 
                 {/* No plan yet */}
                 {!dailyPlan && !isGeneratingPlan && (
