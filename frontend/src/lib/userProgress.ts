@@ -25,6 +25,9 @@ export interface DailyPlan {
     tasks: DailyTask[];
     generatedAt: number;
     masterFeedback?: string;
+    /** Mejora block id this plan's 3 cards were generated from, if the
+     *  student picked one instead of leaving it on "Automático". */
+    focusPathId?: string;
 }
 
 export interface ActivityEntry {

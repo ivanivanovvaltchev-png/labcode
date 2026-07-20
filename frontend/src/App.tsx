@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Navigation from './components/layout/Navigation';
 import Dashboard from './components/layout/Dashboard';
 import Map from './components/layout/Map';
@@ -34,6 +34,41 @@ const OnboardingRoute: React.FC = () => {
     const pathId = loadSelectedPath();
     if (!pathId) return <Navigate to="/elegir-camino" replace />;
     return <OnboardingFlow pathId={pathId} />;
+};
+
+// MentorPage assumes it gets a fresh mount per exercise session (its internal
+// state — focus block, exercise text, chat — is only initialized once on
+// mount). React Router reuses the same component instance when only the
+// query string changes on the same route, so without this key, navigating
+// from one Mejora block straight to another (or from a task card straight
+// into "Práctica libre") would silently carry over the PREVIOUS session's
+// state. Every caller that navigates to /mentor mints a unique `s` session
+// id (see lib/sessionKey.ts) and MentorPage preserves it when it clears its
+// other params — so keying on just `s` (not the whole search string) forces
+// a remount only when a genuinely NEW session starts, not on every internal
+// URL cleanup.
+const AppRoutes: React.FC<{ user: string; xp: number }> = ({ user, xp }) => {
+    const location = useLocation();
+    const mentorSessionKey = new URLSearchParams(location.search).get('s') ?? 'no-session';
+    return (
+        <Routes>
+            <Route path="/" element={<SmartHome />} />
+            <Route path="/camino" element={<PathDashboard />} />
+            <Route path="/elegir-camino" element={<PathSelector isChanging />} />
+            <Route path="/onboarding" element={<OnboardingRoute />} />
+            <Route path="/modulos" element={<Map />} />
+            <Route path="/dashboard" element={<Dashboard user={user} xp={xp} unlockedModules={Array.from({ length: 16 }, (_, i) => i + 1)} onBack={() => { }} />} />
+            <Route path="/module/:id" element={<AIPracticePage />} />
+            <Route path="/error-test" element={<ErrorTestPage />} />
+            <Route path="/ejercicios-progresivos" element={<ProgressiveExerciseView />} />
+            <Route path="/mentor" element={<MentorPage key={mentorSessionKey} />} />
+            <Route path="/practica" element={<PracticePage />} />
+            <Route path="/mejora" element={<ImprovePage />} />
+            <Route path="/perfil-aprendizaje" element={<KnowledgePage />} />
+            <Route path="/test-diario" element={<DailyTestPage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+    );
 };
 
 function App() {
@@ -139,23 +174,7 @@ function App() {
                 <Navigation user={user} xp={xp} userId={session.user.id} />
 
                 <main className="pt-16 flex-1 relative z-10 w-full">
-                    <Routes>
-                        <Route path="/" element={<SmartHome />} />
-                        <Route path="/camino" element={<PathDashboard />} />
-                        <Route path="/elegir-camino" element={<PathSelector isChanging />} />
-                        <Route path="/onboarding" element={<OnboardingRoute />} />
-                        <Route path="/modulos" element={<Map />} />
-                        <Route path="/dashboard" element={<Dashboard user={user} xp={xp} unlockedModules={Array.from({ length: 16 }, (_, i) => i + 1)} onBack={() => { }} />} />
-                        <Route path="/module/:id" element={<AIPracticePage />} />
-                        <Route path="/error-test" element={<ErrorTestPage />} />
-                        <Route path="/ejercicios-progresivos" element={<ProgressiveExerciseView />} />
-                        <Route path="/mentor" element={<MentorPage />} />
-                        <Route path="/practica" element={<PracticePage />} />
-                        <Route path="/mejora" element={<ImprovePage />} />
-                        <Route path="/perfil-aprendizaje" element={<KnowledgePage />} />
-                        <Route path="/test-diario" element={<DailyTestPage />} />
-                        <Route path="*" element={<Navigate to="/" replace />} />
-                    </Routes>
+                    <AppRoutes user={user} xp={xp} />
                 </main>
 
                 <div className="fixed inset-0 pointer-events-none z-0">

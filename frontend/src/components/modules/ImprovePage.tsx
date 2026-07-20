@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { loadSelectedPath } from '../../lib/selectedPath';
 import { getAllMejoraSections } from '../../lib/mejoraSections';
 import { getPracticePathProgress, getFocusedConceptsForPrompt } from '../../lib/masteryEngine';
+import { mintSessionId } from '../../lib/sessionKey';
 
 type Difficulty = 'facil' | 'medio' | 'dificil';
 
@@ -63,6 +64,7 @@ const ImprovePage: React.FC = () => {
             practiceMode: 'true',
             practiceDifficulty: difficulty,
             focusPathId: selectedPath.id,
+            s: mintSessionId(),
         });
         navigate(`/mentor?${params.toString()}`);
     };

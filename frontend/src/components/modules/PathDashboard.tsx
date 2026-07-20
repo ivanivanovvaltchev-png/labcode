@@ -7,6 +7,9 @@ import { isOnboardingComplete, getDiagnosticResult, getDailyPlan, completeTask, 
 import { generateDailyPlan, generateMasterFeedback } from '../../ai/diagnosticAgent';
 import { recordPractice, getHabilidadesValidadas, getActiveSkills } from '../../lib/learningMetrics';
 import { seedConceptRegistry, getOverallMasteryPct, getAllBlocksProgress } from '../../lib/masteryEngine';
+import { mintSessionId } from '../../lib/sessionKey';
+import { getAllMejoraSections } from '../../lib/mejoraSections';
+import { loadDailyFocusBlock, saveDailyFocusBlock } from '../../lib/dailyFocus';
 import { getActiveMentorTaskId } from './MentorPage';
 import { getTodayTest } from '../../lib/dailyTest';
 
@@ -50,9 +53,16 @@ const PathDashboard: React.FC = () => {
     const [isGeneratingFeedback, setIsGeneratingFeedback] = useState(false);
     const [showSkillsDetail, setShowSkillsDetail] = useState(false);
     const [cardDifficulties, setCardDifficulties] = useState<Record<string, 'facil' | 'medio' | 'dificil'>>({});
+    // "Automático" (null) = dynamic slot system across the whole registry, same
+    // as before. Picking a Mejora block scopes all 3 daily cards to just that
+    // PDF's real content, like a lightweight shortcut into Mentor → Mejora.
+    const [dailyFocusBlockId, setDailyFocusBlockId] = useState<string | null>(
+        () => loadDailyFocusBlock(loadSelectedPath() ?? '')
+    );
 
     const pathId = loadSelectedPath();
     const path = pathId ? getPathById(pathId) : null;
+    const mejoraSections = getAllMejoraSections();
 
     useEffect(() => {
         if (!pathId) return;
@@ -61,9 +71,15 @@ const PathDashboard: React.FC = () => {
         setProfileConcepts(profile?.concepts ?? []);
         // Refresh plan (handles path switches or external updates)
         setDailyPlan(loadPlanForPath(pathId));
+        setDailyFocusBlockId(loadDailyFocusBlock(pathId));
         // Seed the mastery engine so the dynamic progression system is ready
         seedConceptRegistry(pathId);
     }, [pathId]);
+
+    const handleSelectFocusBlock = (blockId: string | null) => {
+        setDailyFocusBlockId(blockId);
+        if (pathId) saveDailyFocusBlock(pathId, blockId);
+    };
 
     // Re-read plan when pullFromCloud finishes writing to localStorage
     useEffect(() => {
@@ -125,9 +141,11 @@ const PathDashboard: React.FC = () => {
                 totalTasks: String(dailyPlan.tasks.length),
                 taskDifficulty: autoDifficulty,
                 taskDescFacil: autoTask.description,
+                s: mintSessionId(),
             });
             if (autoTask.descriptionMedio) autoParams.set('taskDescMedio', autoTask.descriptionMedio);
             if (autoTask.descriptionDificil) autoParams.set('taskDescDificil', autoTask.descriptionDificil);
+            if (dailyPlan.focusPathId) autoParams.set('focusPathId', dailyPlan.focusPathId);
             return <Navigate to={`/mentor?${autoParams.toString()}`} replace />;
         }
     }
@@ -157,11 +175,12 @@ const PathDashboard: React.FC = () => {
             const available = getAvailableSkills(path, concepts, assessments);
             const habilidades = getHabilidadesValidadas(path, concepts, assessments);
             const activeSkills = pathId ? getActiveSkills(pathId) : [];
-            const tasks = await generateDailyPlan(path, diagResult?.weakAreas ?? [], concepts, available, habilidades, activeSkills, pathId);
+            const tasks = await generateDailyPlan(path, diagResult?.weakAreas ?? [], concepts, available, habilidades, activeSkills, pathId, dailyFocusBlockId ?? undefined);
             const plan = {
                 date: todayString(),
                 tasks: tasks.map((t, i) => ({ ...t, id: `task-${Date.now()}-${i}`, completed: false })),
                 generatedAt: Date.now(),
+                focusPathId: dailyFocusBlockId ?? undefined,
             };
             saveDailyPlan(pathId, plan);
             setDailyPlan(plan);
@@ -189,17 +208,18 @@ const PathDashboard: React.FC = () => {
     const goToMentor = (task: { title: string; description: string; descriptionMedio?: string; descriptionDificil?: string; skillRef: string; id?: string }, taskIndex?: number) => {
         const taskId = task.id;
         if (taskId && getActiveMentorTaskId() === taskId) {
-            navigate(`/mentor?resumeTaskId=${taskId}`);
+            navigate(`/mentor?resumeTaskId=${taskId}&s=${mintSessionId()}`);
             return;
         }
         const difficulty = taskId ? (cardDifficulties[taskId] ?? 'dificil') : 'dificil';
         const taskDesc = difficulty === 'dificil' ? (task.descriptionDificil ?? task.description)
             : difficulty === 'medio' ? (task.descriptionMedio ?? task.description)
             : task.description;
-        const params = new URLSearchParams({ taskTitle: task.title, taskDesc, skillRef: task.skillRef });
+        const params = new URLSearchParams({ taskTitle: task.title, taskDesc, skillRef: task.skillRef, s: mintSessionId() });
         if (taskId) params.set('taskId', taskId);
         if (taskIndex !== undefined) params.set('taskIndex', String(taskIndex));
         if (dailyPlan) params.set('totalTasks', String(dailyPlan.tasks.length));
+        if (dailyPlan?.focusPathId) params.set('focusPathId', dailyPlan.focusPathId);
         params.set('taskDifficulty', difficulty);
         params.set('taskDescFacil', task.description);
         if (task.descriptionMedio) params.set('taskDescMedio', task.descriptionMedio);
@@ -291,12 +311,25 @@ const PathDashboard: React.FC = () => {
                         )}
                     </div>
                     {dailyPlan && !isGeneratingPlan && allTasksDone && (
-                        <button
-                            onClick={handleGeneratePlan}
-                            className="text-sm text-light/30 hover:text-light/60 transition-colors border border-light/10 px-4 py-2 rounded-lg"
-                        >
-                            🔄 Nuevo plan
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <select
+                                value={dailyFocusBlockId ?? ''}
+                                onChange={e => handleSelectFocusBlock(e.target.value || null)}
+                                className="text-xs bg-[#0f0f0f] border border-light/10 text-light/60 rounded-lg px-2.5 py-2 max-w-[160px]"
+                                title="Centrar el próximo plan en un solo bloque de Mejora"
+                            >
+                                <option value="">Automático</option>
+                                {mejoraSections.map(s => (
+                                    <option key={s.id} value={s.id}>{s.emoji} {s.title}</option>
+                                ))}
+                            </select>
+                            <button
+                                onClick={handleGeneratePlan}
+                                className="text-sm text-light/30 hover:text-light/60 transition-colors border border-light/10 px-4 py-2 rounded-lg whitespace-nowrap"
+                            >
+                                🔄 Nuevo plan
+                            </button>
+                        </div>
                     )}
                 </div>
 
@@ -305,9 +338,22 @@ const PathDashboard: React.FC = () => {
                     <div className="text-center py-16">
                         <div className="text-5xl mb-4">📋</div>
                         <p className="text-light/60 text-lg font-semibold mb-2">¿Qué practicamos hoy?</p>
-                        <p className="text-sm text-light/30 mb-7 max-w-sm mx-auto">
+                        <p className="text-sm text-light/30 mb-5 max-w-sm mx-auto">
                             La IA genera 3 ejercicios personalizados según tus puntos débiles del diagnóstico.
                         </p>
+                        <div className="max-w-xs mx-auto mb-7 text-left">
+                            <label className="text-xs text-light/30 mb-1.5 block">Centrar en un bloque de Mejora (opcional)</label>
+                            <select
+                                value={dailyFocusBlockId ?? ''}
+                                onChange={e => handleSelectFocusBlock(e.target.value || null)}
+                                className="w-full text-sm bg-[#0f0f0f] border border-light/10 text-light/70 rounded-xl px-3 py-2.5"
+                            >
+                                <option value="">✨ Automático — recomendado por tu progreso</option>
+                                {mejoraSections.map(s => (
+                                    <option key={s.id} value={s.id}>{s.emoji} {s.title}</option>
+                                ))}
+                            </select>
+                        </div>
                         {planError && (
                             <div className="mb-5 mx-auto max-w-md bg-red-900/20 border border-red-500/30 rounded-xl px-4 py-3 text-left">
                                 <p className="text-sm font-bold text-red-400 mb-1">❌ Error al generar el plan</p>

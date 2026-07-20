@@ -5,7 +5,8 @@ import {
     HABILIDADES_PERMITIDAS,
 } from './studentProfile';
 import { getContextForPrompt } from '../lib/theoryContext';
-import { getSlotConceptsForPrompt } from '../lib/masteryEngine';
+import { getSlotConceptsForPrompt, getFocusedConceptsForPrompt } from '../lib/masteryEngine';
+import { getMejoraSectionById } from '../lib/mejoraSections';
 import { loadKnowledgeProfile } from '../lib/knowledgeProfile';
 
 const CONCEPT_SYNTAX_MAP: Record<string, string[]> = {
@@ -415,62 +416,88 @@ export async function generateDailyPlan(
     _availableSkills: { name: string; importance: string; order: number }[],
     _habilidadesValidadas: string[],
     activeSkills: string[] = [],
-    pathId: string = ''
+    pathId: string = '',
+    focusSectionId?: string
 ): Promise<DailyTaskRaw[]> {
     const pathContext = buildPathContext(path);
-    const knowledgeBlock = buildKnowledgeBlock();
 
-    // ── Topic focus detection ─────────────────────────────────────────────────
-    //
-    // KEY RULE (from FLUJO_LABCODE): the 3 cards always focus on what the student
-    // is CURRENTLY LEARNING — Slot 2 (practicing) and Slot 3 (new from PDF).
-    // Slot 1 concepts are already mastered (≥70%) and must NEVER drive the cards.
-    //
-    // Detection priority:
-    //   1. Recent practice of a non-Slot-1 concept → use that (confirms active topic)
-    //   2. Slot 2 concepts (mastery 35–69%) → default learning zone
-    //   3. Slot 3 concepts (mastery <35%, from PDF) → newest, needs introduction
-    //   4. Pure fallback (empty registry) → NumPy basics from studentProfile
+    // ── Mejora block explicitly chosen for today's training ────────────────────
+    // If the student picked a block instead of leaving it on "Automático", all
+    // 3 cards come from that single block's real PDF content — never mixed
+    // with other topics — same rule as the Mentor → Mejora focus mode.
+    const focusSection = focusSectionId ? getMejoraSectionById(focusSectionId) : null;
 
-    const slotData = pathId ? getSlotConceptsForPrompt(pathId) : null;
+    let knowledgeBlock = buildKnowledgeBlock();
+    let topicLabel: string;
+    let relatedConcepts: string;
+    let cardSkillRefs: [string, string, string];
 
-    // Concepts already mastered — must not become card topic
-    const slot1Set = new Set(slotData?.slot1 ?? []);
+    if (focusSection) {
+        topicLabel = focusSection.title;
+        relatedConcepts = focusSection.concepts.slice(0, 6).map(c => c.name).join(' · ');
+        const sourcesText = focusSection.sources
+            .map(s => `--- INICIO CONTENIDO REAL DEL PDF "${s.fileName}" ---\n${s.rawText}\n--- FIN CONTENIDO REAL DEL PDF ---`)
+            .join('\n\n');
+        knowledgeBlock = `UNIVERSO CERRADO DE CONOCIMIENTO — BLOQUE "${topicLabel}" (CRÍTICO):
+El estudiante ha elegido centrarse SOLO en este bloque de Mejora para su entrenamiento de hoy. Tu ÚNICA fuente de verdad es el contenido real de este PDF, reproducido a continuación — básate en él exactamente como está explicado, con los mismos ejemplos, métodos y sintaxis, sin inventar ni mezclar con otros temas del currículo:
 
-    // Prefixes from old/corrupted card titles — filter these out too
-    const BAD = ['Repaso', 'Práctica', 'Aprender', 'Básico', 'Intermedio', 'Avanzado', 'Tarjeta'];
-    const isClean = (s: string) => s.trim().length > 3 && !BAD.some(p => s.startsWith(p));
+${sourcesText}`;
+        const focused = getFocusedConceptsForPrompt(pathId, focusSectionId!);
+        cardSkillRefs = [focused.facil ?? topicLabel, focused.medio ?? topicLabel, focused.dificil ?? topicLabel];
+    } else {
+        // ── Topic focus detection ───────────────────────────────────────────────
+        //
+        // KEY RULE (from FLUJO_LABCODE): the 3 cards always focus on what the student
+        // is CURRENTLY LEARNING — Slot 2 (practicing) and Slot 3 (new from PDF).
+        // Slot 1 concepts are already mastered (≥70%) and must NEVER drive the cards.
+        //
+        // Detection priority:
+        //   1. Recent practice of a non-Slot-1 concept → use that (confirms active topic)
+        //   2. Slot 2 concepts (mastery 35–69%) → default learning zone
+        //   3. Slot 3 concepts (mastery <35%, from PDF) → newest, needs introduction
+        //   4. Pure fallback (empty registry) → NumPy basics from studentProfile
 
-    // Non-Slot-1 skills the student practiced recently (most reliable signal)
-    const recentNonMastered = activeSkills.filter(s => isClean(s) && !slot1Set.has(s));
+        const slotData = pathId ? getSlotConceptsForPrompt(pathId) : null;
 
-    // All concepts in the current learning zone (Slot 2 + Slot 3)
-    const learningZone = [
-        ...(slotData?.slot2 ?? []),
-        ...(slotData?.slot3 ?? []),
-    ].filter(isClean);
+        // Concepts already mastered — must not become card topic
+        const slot1Set = new Set(slotData?.slot1 ?? []);
 
-    // The single concept that anchors all 3 cards
-    const rawFocus = recentNonMastered[0] ?? learningZone[0] ?? 'NumPy Arrays básico';
+        // Prefixes from old/corrupted card titles — filter these out too
+        const BAD = ['Repaso', 'Práctica', 'Aprender', 'Básico', 'Intermedio', 'Avanzado', 'Tarjeta'];
+        const isClean = (s: string) => s.trim().length > 3 && !BAD.some(p => s.startsWith(p));
 
-    // Map individual concept names to a clean topic label for the card titles
-    // (e.g. "np.zeros(n) — array de ceros" → "NumPy Arrays")
-    function resolveTopicLabel(name: string): string {
-        if (/numpy|np\.|array\[/i.test(name))                    return 'NumPy Arrays';
-        if (/lista|list|append|pop|sort|slice|slicing/i.test(name)) return 'Listas';
-        if (/bucle|for|while|range|iterar/i.test(name))          return 'Bucles';
-        if (/if|elif|else|condici|booleano/i.test(name))         return 'Condicionales';
-        if (/variable|str|int|float|bool|aritm|operat/i.test(name)) return 'Variables y Tipos';
-        // fallback: use the first clause before ":" or "("
-        return name.split(/[:(]/)[0].trim() || name;
+        // Non-Slot-1 skills the student practiced recently (most reliable signal)
+        const recentNonMastered = activeSkills.filter(s => isClean(s) && !slot1Set.has(s));
+
+        // All concepts in the current learning zone (Slot 2 + Slot 3)
+        const learningZone = [
+            ...(slotData?.slot2 ?? []),
+            ...(slotData?.slot3 ?? []),
+        ].filter(isClean);
+
+        // The single concept that anchors all 3 cards
+        const rawFocus = recentNonMastered[0] ?? learningZone[0] ?? 'NumPy Arrays básico';
+
+        // Map individual concept names to a clean topic label for the card titles
+        // (e.g. "np.zeros(n) — array de ceros" → "NumPy Arrays")
+        function resolveTopicLabel(name: string): string {
+            if (/numpy|np\.|array\[/i.test(name))                    return 'NumPy Arrays';
+            if (/lista|list|append|pop|sort|slice|slicing/i.test(name)) return 'Listas';
+            if (/bucle|for|while|range|iterar/i.test(name))          return 'Bucles';
+            if (/if|elif|else|condici|booleano/i.test(name))         return 'Condicionales';
+            if (/variable|str|int|float|bool|aritm|operat/i.test(name)) return 'Variables y Tipos';
+            // fallback: use the first clause before ":" or "("
+            return name.split(/[:(]/)[0].trim() || name;
+        }
+
+        topicLabel = resolveTopicLabel(rawFocus);
+
+        // Full list of related concepts for the AI (so it can vary exercises within the topic)
+        relatedConcepts = learningZone.length > 0
+            ? learningZone.slice(0, 6).join(' · ')
+            : rawFocus;
+        cardSkillRefs = [topicLabel, topicLabel, topicLabel];
     }
-
-    const topicLabel = resolveTopicLabel(rawFocus);
-
-    // Full list of related concepts for the AI (so it can vary exercises within the topic)
-    const relatedConcepts = learningZone.length > 0
-        ? learningZone.slice(0, 6).join(' · ')
-        : rawFocus;
 
     const card1Block = `TARJETA 1 — BÁSICO
 Tema: ${topicLabel}
@@ -536,9 +563,9 @@ ${card3Block}`;
 
     // Overwrite title and skillRef with clean values — never inherit noisy AI output
     const labels = [
-        { title: `Básico — ${topicLabel}`,      skillRef: topicLabel },
-        { title: `Intermedio — ${topicLabel}`,  skillRef: topicLabel },
-        { title: `Avanzado — ${topicLabel}`,    skillRef: topicLabel },
+        { title: `Básico — ${topicLabel}`,      skillRef: cardSkillRefs[0] },
+        { title: `Intermedio — ${topicLabel}`,  skillRef: cardSkillRefs[1] },
+        { title: `Avanzado — ${topicLabel}`,    skillRef: cardSkillRefs[2] },
     ];
 
     return result.map((task, idx) =>

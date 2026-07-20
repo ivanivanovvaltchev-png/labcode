@@ -81,6 +81,7 @@ const MentorPage: React.FC = () => {
     const paramTaskDescDificil = searchParams.get('taskDescDificil');
     const paramPracticeDiff    = (searchParams.get('practiceDifficulty') ?? 'dificil') as 'facil' | 'medio' | 'dificil';
     const paramFocusPathId     = searchParams.get('focusPathId');    // set from Mentor → Mejora
+    const paramSessionId       = searchParams.get('s');              // see lib/sessionKey.ts
     const hasSkillContext = !!(paramTaskTitle || paramSkillRef);
     const taskIndex   = paramTaskIndex  !== null ? parseInt(paramTaskIndex)  : null;
     const totalTasks  = paramTotalTasks !== null ? parseInt(paramTotalTasks) : null;
@@ -117,7 +118,21 @@ const MentorPage: React.FC = () => {
     // Persists across the session even after URL params are cleared — set once
     // when arriving from Mentor → Mejora, so every AI call in this session stays
     // scoped to that single PDF/clase instead of the full student profile.
-    const [focusPathId] = useState<string | null>(paramFocusPathId);
+    //
+    // IMPORTANT: React Router does NOT remount this component when navigating
+    // from /mentor?focusPathId=A straight to /mentor?focusPathId=B (same route,
+    // only the query string changes) — so a plain useState(paramFocusPathId)
+    // would freeze on whichever block was active the FIRST time this page
+    // mounted, silently leaking that stale focus into a totally different
+    // Mejora block's session. This effect re-syncs it every time a fresh
+    // (non-empty) focusPathId shows up in the URL.
+    const [focusPathId, setFocusPathId] = useState<string | null>(paramFocusPathId);
+    useEffect(() => {
+        if (paramFocusPathId && paramFocusPathId !== focusPathId) {
+            setFocusPathId(paramFocusPathId);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [paramFocusPathId]);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const getKnowledgeBlock = () => {
@@ -167,7 +182,7 @@ No introduzcas conceptos de otros bloques ni mezcles con el resto del currículo
             setSavedTotalTasks(session.totalTasks ?? null);
             setIsTaskCardSession(session.isTaskCard ?? true);
             setExerciseSubmitted(true);
-            setSearchParams({}, { replace: true });
+            setSearchParams(paramSessionId ? { s: paramSessionId } : {}, { replace: true });
 
         } else if (hasSkillContext) {
             // ── NEW exercise: coming from a skill/task button ──
@@ -190,7 +205,7 @@ No introduzcas conceptos de otros bloques ni mezcles con el resto del currículo
                 callDeepSeekForMentor(paramTaskDesc, [], 'init', getKnowledgeBlock()).then(resp => {
                     setMessages([{ role: 'assistant', content: resp }]);
                     setIsLoading(false);
-                    setSearchParams({}, { replace: true });
+                    setSearchParams(paramSessionId ? { s: paramSessionId } : {}, { replace: true });
                 }).catch(() => setIsLoading(false));
             } else {
                 // ── Fallback: generate a fresh exercise from the skill reference ──
@@ -213,7 +228,7 @@ No introduzcas conceptos de otros bloques ni mezcles con el resto del currículo
                     const resp = await callDeepSeekForMentor(generatedExercise, [], 'init', getKnowledgeBlock());
                     setMessages([{ role: 'assistant', content: resp }]);
                     setIsLoading(false);
-                    setSearchParams({}, { replace: true });
+                    setSearchParams(paramSessionId ? { s: paramSessionId } : {}, { replace: true });
                 }).catch(() => {
                     setIsGeneratingExercise(false);
                     setExerciseSubmitted(false);

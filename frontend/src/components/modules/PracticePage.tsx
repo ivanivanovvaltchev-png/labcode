@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { loadSelectedPath } from '../../lib/selectedPath';
 import { getSlotConceptsForPrompt } from '../../lib/masteryEngine';
+import { mintSessionId } from '../../lib/sessionKey';
 
 type Difficulty = 'facil' | 'medio' | 'dificil';
 
@@ -54,6 +55,7 @@ const PracticePage: React.FC = () => {
             taskTitle: concept,
             practiceMode: 'true',
             practiceDifficulty: difficulty,
+            s: mintSessionId(),
         });
         navigate(`/mentor?${params.toString()}`);
     };
