@@ -163,11 +163,13 @@ const PathDashboard: React.FC = () => {
     const nextCritical = pendingSkills.find(s => s.importance === 'critical');
     const todayTest = getTodayTest();
 
-    const handleGeneratePlan = async () => {
+    const handleGeneratePlan = async (force = false) => {
         if (!pathId || !path) return;
-        // Never overwrite a plan with pending tasks — guard against accidental calls
+        // Never overwrite a plan with pending tasks — guard against accidental
+        // calls. `force` bypasses this for the explicit "Aplicar ahora" button,
+        // which already confirms with the user that progress will be lost.
         const current = getDailyPlan(pathId);
-        if (current && current.tasks.some(t => !t.completed)) return;
+        if (!force && current && current.tasks.some(t => !t.completed)) return;
         setIsGeneratingPlan(true);
         try {
             const profile = loadKnowledgeProfile();
@@ -191,6 +193,23 @@ const PathDashboard: React.FC = () => {
         } finally {
             setIsGeneratingPlan(false);
         }
+    };
+
+    // Regenerates TODAY's plan right now with the currently-selected focus
+    // block, discarding any pending (unfinished) cards. Only relevant when
+    // there IS a pending plan that doesn't already match the selection —
+    // otherwise the normal "next plan" flow already handles it.
+    const handleApplyFocusNow = () => {
+        if (!dailyPlan || allTasksDone) return;
+        const pendingCount = dailyPlan.tasks.filter(t => !t.completed).length;
+        if (pendingCount > 0) {
+            const ok = window.confirm(
+                `Vas a reemplazar las ${pendingCount} tarjeta${pendingCount > 1 ? 's' : ''} pendiente${pendingCount > 1 ? 's' : ''} de hoy por 3 nuevas centradas en el bloque elegido. Se perderá el progreso de las tarjetas actuales sin terminar. ¿Continuar?`
+            );
+            if (!ok) return;
+        }
+        setPlanError(null);
+        handleGeneratePlan(true);
     };
 
     const handleCompleteTask = (taskId: string) => {
@@ -325,18 +344,28 @@ const PathDashboard: React.FC = () => {
                             </select>
                             {dailyPlan && allTasksDone && (
                                 <button
-                                    onClick={handleGeneratePlan}
+                                    onClick={() => handleGeneratePlan()}
                                     className="text-sm text-light/30 hover:text-light/60 transition-colors border border-light/10 px-4 py-2 rounded-lg whitespace-nowrap"
                                 >
                                     🔄 Nuevo plan
                                 </button>
                             )}
+                            {dailyPlan && !allTasksDone && (dailyPlan.focusPathId ?? null) !== dailyFocusBlockId && (
+                                <button
+                                    onClick={handleApplyFocusNow}
+                                    className="text-sm text-white bg-violet-600 hover:bg-violet-500 transition-colors px-4 py-2 rounded-lg whitespace-nowrap font-semibold"
+                                >
+                                    ⚡ Aplicar ahora
+                                </button>
+                            )}
                         </div>
                     )}
                 </div>
-                {dailyPlan && !allTasksDone && (
+                {dailyPlan && !allTasksDone && (dailyPlan.focusPathId ?? null) === dailyFocusBlockId && (
                     <p className="text-xs text-light/25 -mt-4 mb-5">
-                        El bloque elegido arriba se aplicará al próximo plan (cuando termines las 3 tarjetas de hoy o pulses "Nuevo plan").
+                        {dailyFocusBlockId
+                            ? 'Las tarjetas de hoy ya están centradas en este bloque.'
+                            : 'Elige un bloque y pulsa "Aplicar ahora" para regenerar las tarjetas de hoy con él.'}
                     </p>
                 )}
 
