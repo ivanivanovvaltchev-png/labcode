@@ -198,6 +198,35 @@ export function getFocusedConceptsForPrompt(pathId: string, sectionId: string): 
     };
 }
 
+/**
+ * Picks a concept from a single Mejora section for a given difficulty,
+ * choosing RANDOMLY within the matching mastery tier (low mastery → dificil,
+ * mid → medio, high → facil) instead of always the single weakest/middle/
+ * strongest concept. This keeps every "Generar ejercicio" click inside the
+ * same section (never mixes in concepts from other blocks) while still
+ * varying which concept gets practiced each time.
+ */
+export function pickFocusedConcept(
+    pathId: string,
+    sectionId: string,
+    difficulty: 'facil' | 'medio' | 'dificil'
+): string | null {
+    const progress = getPracticePathProgress(pathId, sectionId);
+    if (progress.length === 0) return null;
+
+    const sorted = [...progress].sort((a, b) => a.masteryPct - b.masteryPct);
+    const third = Math.max(1, Math.floor(sorted.length / 3));
+
+    const tier = difficulty === 'dificil'
+        ? sorted.slice(0, third)
+        : difficulty === 'medio'
+            ? sorted.slice(third, sorted.length - third || third)
+            : sorted.slice(sorted.length - third);
+
+    const pool = tier.length > 0 ? tier : sorted;
+    return pool[Math.floor(Math.random() * pool.length)].conceptName;
+}
+
 // ─── Concept management ───────────────────────────────────────────────────────
 
 /**

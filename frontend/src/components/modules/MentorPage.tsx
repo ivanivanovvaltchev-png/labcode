@@ -8,7 +8,7 @@ import { loadSelectedPath, loadSelfAssessments } from '../../lib/selectedPath';
 import { getPathById, isSkillMastered } from '../../data/careerPaths';
 import { generateSkillExercise } from '../../ai/diagnosticAgent';
 import { recordMentorSession, getActiveSkills } from '../../lib/learningMetrics';
-import { ensureConceptTracked, getSlotConceptsForPrompt } from '../../lib/masteryEngine';
+import { ensureConceptTracked, getSlotConceptsForPrompt, pickFocusedConcept } from '../../lib/masteryEngine';
 import { getMejoraSectionById } from '../../lib/mejoraSections';
 
 const STORAGE_KEY = 'mentor_session';
@@ -421,10 +421,17 @@ No introduzcas conceptos de otros bloques ni mezcles con el resto del currículo
         const pathId = loadSelectedPath();
         saveCompletedSession({ exercise, messages, completedAt: Date.now(), isVariantOf: variantOrigin ?? undefined });
         clearActiveSession();
-        const slots = pathId ? getSlotConceptsForPrompt(pathId) : null;
-        const concept = d === 'facil' ? (slots?.slot1[0] ?? null)
-            : d === 'medio' ? (slots?.slot2[0] ?? null)
-            : (slots?.slot3[0] ?? null);
+        // If we're in a "Mejora" focused session, stay within that same block's
+        // concepts instead of pulling from the whole student profile.
+        let concept: string | null = null;
+        if (focusPathId && pathId) {
+            concept = pickFocusedConcept(pathId, focusPathId, d);
+        } else {
+            const slots = pathId ? getSlotConceptsForPrompt(pathId) : null;
+            concept = d === 'facil' ? (slots?.slot1[0] ?? null)
+                : d === 'medio' ? (slots?.slot2[0] ?? null)
+                : (slots?.slot3[0] ?? null);
+        }
         if (!concept) return;
         setShowCompletionPopup(false);
         popupShownRef.current = false;

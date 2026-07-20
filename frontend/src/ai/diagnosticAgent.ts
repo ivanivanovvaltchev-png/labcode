@@ -104,14 +104,14 @@ export interface DailyTaskRaw {
     skillRef: string;
 }
 
-async function deepSeekRaw(systemPrompt: string, userPrompt: string): Promise<string> {
+async function deepSeekRaw(systemPrompt: string, userPrompt: string, temperature = 0.6): Promise<string> {
     const apiKey = import.meta.env.VITE_DEEPSEEK_API_KEY;
     if (!apiKey) throw new Error('No API Key');
 
     const body = {
         model: 'deepseek-chat',
         messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
-        temperature: 0.6,
+        temperature,
         max_tokens: 600,
     };
 
@@ -156,9 +156,11 @@ Habilidad a practicar: ${skillName}
 ${known}
 
 Genera un ejercicio práctico y concreto para practicar "${skillName}".
-Contexto realista, instrucciones claras, nivel adecuado para alguien que está aprendiendo.`;
+Contexto realista, instrucciones claras, nivel adecuado para alguien que está aprendiendo.
 
-    return deepSeekRaw(systemPrompt, userPrompt);
+INSTRUCCIÓN CRÍTICA: DEBES generar un problema LÓGICA Y ESTRUCTURALMENTE NUEVO cada vez. NO repitas el mismo escenario, historia o mecánica que hayas usado antes para esta misma habilidad. Semilla del sistema para forzar variación: ${Math.random().toString(36).slice(2, 10)}.`;
+
+    return deepSeekRaw(systemPrompt, userPrompt, 0.95);
 }
 
 const RETRY_DELAYS = [3000, 6000, 12000]; // ms between retries for 503/429
