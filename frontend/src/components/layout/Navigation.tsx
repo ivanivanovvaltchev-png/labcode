@@ -1,9 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { loadSelectedPath, loadSelfAssessments } from '../../lib/selectedPath';
-import { CAREER_PATHS, calculateProgress } from '../../data/careerPaths';
-import { loadKnowledgeProfile } from '../../lib/knowledgeProfile';
-import { loadMetrics } from '../../lib/learningMetrics';
+import { loadSelectedPath } from '../../lib/selectedPath';
+import { CAREER_PATHS } from '../../data/careerPaths';
+import { getOverallMasteryPct } from '../../lib/masteryEngine';
 import { supabase } from '../../lib/supabaseClient';
 import { pushToCloud, clearLocalData } from '../../lib/cloudSync';
 
@@ -39,23 +38,12 @@ const Navigation: React.FC<NavigationProps> = ({ user = 'Estudiante', userId }) 
         return () => document.removeEventListener('mousedown', handler);
     }, []);
 
-    // Compute real curriculum progress for XP display
+    // Real progress = average mastery across every concept in every Mejora
+    // block, driven purely by practice (learningMetrics) — the career path
+    // below is only used as a label/color, not as the source of the %.
     const selectedPathId = loadSelectedPath();
     const activePath = selectedPathId ? CAREER_PATHS.find(p => p.id === selectedPathId) : null;
-
-    let curriculumPct = 0;
-    if (activePath && selectedPathId) {
-        const profile = loadKnowledgeProfile();
-        const selfAssessments = loadSelfAssessments(selectedPathId);
-        const metrics = loadMetrics(selectedPathId);
-        const { pct } = calculateProgress(
-            activePath,
-            profile?.concepts ?? [],
-            selfAssessments,
-            metrics.skillMastery
-        );
-        curriculumPct = pct;
-    }
+    const curriculumPct = selectedPathId ? getOverallMasteryPct(selectedPathId) : 0;
 
     const xp = Math.round(curriculumPct * (MAX_XP / 100));  // 0–10 000
     const level = Math.min(10, Math.floor(xp / XP_PER_LEVEL) + 1);

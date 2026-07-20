@@ -1,4 +1,3 @@
-import { TEMAS_COMPLETADOS, NUMPY_VALIDADO } from '../ai/studentProfile';
 import { loadMetrics, saveMetrics } from './learningMetrics';
 import { getAllMejoraSections, getMejoraSectionById } from './mejoraSections';
 
@@ -43,15 +42,30 @@ function isValidConceptName(name: string): boolean {
     return name.trim().length > 3 && !BAD_PREFIXES.some(p => name.startsWith(p));
 }
 
+/**
+ * The full set of concept names that belong to a Mejora block/section right
+ * now (curated LEARNING_BLOCKS + any uploaded-but-not-yet-curated PDF).
+ * This is the single source of truth for "what counts as a real skill" —
+ * the skill tree and profile are built exclusively from these two things:
+ * (1) the concepts a Mejora block actually teaches, and (2) how well the
+ * student has practiced each one (tracked in learningMetrics).
+ */
+function validConceptNames(): Set<string> {
+    return new Set(getAllMejoraSections().flatMap(s => s.concepts.map(c => c.name)));
+}
+
 function loadConceptRegistry(pathId: string): ConceptRegistry {
     try {
         const raw = localStorage.getItem(REGISTRY_KEY);
         if (raw) {
             const parsed = JSON.parse(raw) as ConceptRegistry;
             if (parsed.pathId === pathId) {
-                // Clean out corrupted entries on every load
+                // Clean out corrupted entries AND anything that isn't a real
+                // Mejora-block concept (e.g. legacy hardcoded/career-path
+                // skill names from before the skill tree was block-based).
+                const valid = validConceptNames();
                 const before = parsed.concepts.length;
-                parsed.concepts = parsed.concepts.filter(c => isValidConceptName(c.name));
+                parsed.concepts = parsed.concepts.filter(c => isValidConceptName(c.name) && valid.has(c.name));
                 if (parsed.concepts.length !== before) saveConceptRegistry(parsed);
                 return parsed;
             }
@@ -68,42 +82,13 @@ export function saveConceptRegistry(registry: ConceptRegistry): void {
 // ─── Initialization ───────────────────────────────────────────────────────────
 
 /**
- * Seeds the concept registry from the hardcoded student profile on first load.
- * TEMAS_COMPLETADOS → 75% mastery (review slot, spaced repetition)
- * NUMPY_VALIDADO    → 50% mastery (practice slot, actively reinforcing)
- * Safe to call repeatedly — idempotent.
+ * @deprecated The skill tree no longer seeds from a hardcoded student
+ * profile — it's built exclusively from Mejora blocks (practicePaths.ts)
+ * and real practice history. Kept as a thin alias to `seedFromPracticePaths`
+ * so existing call sites keep working without change.
  */
 export function seedConceptRegistry(pathId: string): void {
-    const registry = loadConceptRegistry(pathId);
-    if (registry.concepts.length > 0) return;
-
-    const now = Date.now();
-    registry.concepts = [
-        ...TEMAS_COMPLETADOS.map(name => ({
-            name, source: 'manual' as const, addedAt: now, initialMastery: 75,
-        })),
-        ...NUMPY_VALIDADO.map(name => ({
-            name, source: 'manual' as const, addedAt: now, initialMastery: 50,
-        })),
-    ];
-    saveConceptRegistry(registry);
-
-    // Seed learningMetrics mastery so existing tracking code also picks them up
-    const metrics = loadMetrics(pathId);
-    let changed = false;
-    for (const c of registry.concepts) {
-        if (!metrics.skillMastery[c.name]) {
-            metrics.skillMastery[c.name] = {
-                skillId: c.name,
-                skillName: c.name,
-                masteryPct: c.initialMastery,
-                practiceCount: 0,
-                lastPracticed: '',
-            };
-            changed = true;
-        }
-    }
-    if (changed) saveMetrics(metrics);
+    seedFromPracticePaths(pathId);
 }
 
 /**
@@ -155,6 +140,40 @@ export function seedFromPracticePaths(pathId: string): void {
         saveConceptRegistry(registry);
         saveMetrics(metrics);
     }
+}
+
+/**
+ * Overall profile progress: the average mastery across EVERY concept in
+ * EVERY Mejora block/section — the single number used app-wide (top nav
+ * XP bar, "Mi Perfil") for "how much of what I've been taught do I
+ * actually know", derived only from Mejora blocks + real practice.
+ */
+export function getOverallMasteryPct(pathId: string): number {
+    const allConcepts = getAllMejoraSections().flatMap(s => s.concepts);
+    if (allConcepts.length === 0) return 0;
+    const metrics = loadMetrics(pathId);
+    const total = allConcepts.reduce((sum, c) => sum + (metrics.skillMastery[c.name]?.masteryPct ?? 25), 0);
+    return Math.round(total / allConcepts.length);
+}
+
+/**
+ * Per-block aggregate mastery for every Mejora section — used to render a
+ * full "skill tree" overview (one row per PDF block) in "Mi Perfil".
+ */
+export function getAllBlocksProgress(pathId: string): {
+    id: string;
+    title: string;
+    emoji: string;
+    masteryPct: number;
+    conceptCount: number;
+}[] {
+    return getAllMejoraSections().map(section => {
+        const progress = getPracticePathProgress(pathId, section.id);
+        const pct = progress.length > 0
+            ? Math.round(progress.reduce((s, c) => s + c.masteryPct, 0) / progress.length)
+            : 0;
+        return { id: section.id, title: section.title, emoji: section.emoji, masteryPct: pct, conceptCount: section.concepts.length };
+    });
 }
 
 /**
@@ -260,6 +279,7 @@ export function addConceptsFromPDF(pathId: string, newConcepts: string[]): strin
  */
 export function ensureConceptTracked(pathId: string, skillName: string): void {
     if (!skillName || !pathId || !isValidConceptName(skillName)) return;
+    if (!validConceptNames().has(skillName)) return; // only real Mejora-block concepts count
     const registry = loadConceptRegistry(pathId);
     if (registry.concepts.find(c => c.name === skillName)) return;
     registry.concepts.push({

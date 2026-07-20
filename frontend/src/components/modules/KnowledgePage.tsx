@@ -2,18 +2,17 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { saveKnowledgeProfile, loadKnowledgeProfile, clearKnowledgeProfile, KnowledgeProfile } from '../../lib/knowledgeProfile';
 import { analyzeKnowledgeFromCode, extractCodeFromFile } from '../../ai/knowledgeAnalyzer';
-import { loadSelectedPath, loadSelfAssessments } from '../../lib/selectedPath';
-import { getPathById } from '../../data/careerPaths';
-import {
-    loadMetrics, seedMasteryFromProfile, calculateGapAnalysis,
-    getRecentActivity, totalChallengesSolved, LearningMetrics,
-} from '../../lib/learningMetrics';
+import { loadSelectedPath } from '../../lib/selectedPath';
+import { loadMetrics, getRecentActivity, totalChallengesSolved, LearningMetrics } from '../../lib/learningMetrics';
 import { extractTextFromPDF } from '../../lib/pdfExtractor';
 import {
     addTheoryContext, removeTheoryContext, loadTheoryContexts, clearTheoryContext, TheoryContext,
 } from '../../lib/theoryContext';
 import { analyzeConceptsFromPDF } from '../../ai/pdfConceptAnalyzer';
-import { addConceptsFromPDF, getRegistryConcepts, seedConceptRegistry, boostMasteryFromCodeAnalysis } from '../../lib/masteryEngine';
+import {
+    addConceptsFromPDF, getRegistryConcepts, seedConceptRegistry, boostMasteryFromCodeAnalysis,
+    getAllBlocksProgress, getPracticePathProgress,
+} from '../../lib/masteryEngine';
 
 const ACCEPTED_EXTS = ['.py', '.ipynb', '.txt'];
 const FILE_ICONS: Record<string, string> = { '.py': '🐍', '.ipynb': '📓', '.txt': '📄' };
@@ -37,19 +36,16 @@ const KnowledgePage: React.FC = () => {
     const [dragOver, setDragOver] = useState(false);
     const [error, setError] = useState('');
     const [uploadInfo, setUploadInfo] = useState('');
-    const [activeTab, setActiveTab] = useState<'upload' | 'mastery' | 'gap' | 'activity'>('upload');
+    const [activeTab, setActiveTab] = useState<'upload' | 'mastery' | 'activity'>('upload');
+    const [expandedBlock, setExpandedBlock] = useState<string | null>(null);
 
     const pathId = loadSelectedPath();
-    const path = pathId ? getPathById(pathId) : null;
-    const selfAssessments = pathId ? loadSelfAssessments(pathId) : {};
 
     useEffect(() => {
         const p = loadKnowledgeProfile();
         setProfile(p);
         if (pathId) {
-            const m = loadMetrics(pathId);
-            setMetrics(m);
-            if (p && path) seedMasteryFromProfile(pathId, path, p.concepts, selfAssessments);
+            setMetrics(loadMetrics(pathId));
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [pathId]);
@@ -118,12 +114,9 @@ const KnowledgePage: React.FC = () => {
             };
             saveKnowledgeProfile(newProfile);
             setProfile(newProfile);
-            // Re-seed curriculum mastery from freshly detected concepts
-            if (pathId && path) {
-                seedMasteryFromProfile(pathId, path, newProfile.concepts, selfAssessments);
-                // Also update the ConceptRegistry (card slot engine) from the detected concepts.
-                // This is what makes "uploading your .py files" actually affect the daily plan:
-                // concepts found in real code get a mastery boost and may shift between slots.
+            // Cross-reference detected code concepts against the Mejora-block
+            // registry — concepts found in real code get a mastery boost.
+            if (pathId) {
                 const boosted = boostMasteryFromCodeAnalysis(pathId, result.concepts);
                 if (boosted.length > 0) {
                     console.info(`[masteryEngine] Boosted ${boosted.length} concepts from code analysis:`, boosted);
@@ -204,10 +197,7 @@ const KnowledgePage: React.FC = () => {
         new Date(ts).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
         + ' · ' + new Date(ts).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
 
-    // Gap analysis — only when path and metrics are loaded
-    const gap = (path && metrics && profile)
-        ? calculateGapAnalysis(path, metrics, profile.concepts, selfAssessments)
-        : null;
+    const blocksProgress = pathId ? getAllBlocksProgress(pathId) : [];
 
     const recentActivity = metrics ? getRecentActivity(metrics, 7) : [];
     const maxActivity = Math.max(...recentActivity.map(d => d.challengesSolved + d.mentorSessions), 1);
@@ -253,7 +243,6 @@ const KnowledgePage: React.FC = () => {
             <div className="flex gap-2 bg-[#1a1a1a] border border-light/10 rounded-2xl p-2">
                 <button onClick={() => setActiveTab('upload')} className={tabCls('upload')}>📂 Subir archivos</button>
                 <button onClick={() => setActiveTab('mastery')} className={tabCls('mastery')}>🧠 Árbol de habilidades</button>
-                <button onClick={() => setActiveTab('gap')} className={tabCls('gap')}>🎯 Gap Analysis</button>
                 <button onClick={() => setActiveTab('activity')} className={tabCls('activity')}>📈 Actividad</button>
             </div>
 
@@ -483,157 +472,59 @@ const KnowledgePage: React.FC = () => {
                 </div>
             )}
 
-            {/* ── TAB: MASTERY TREE ── */}
+            {/* ── TAB: MASTERY TREE (based on Mejora blocks + real practice) ── */}
             {activeTab === 'mastery' && (
                 <div className="bg-[#1a1a1a] border border-light/10 rounded-2xl p-7">
                     <h2 className="text-lg font-bold text-light mb-1">Árbol de Habilidades</h2>
                     <p className="text-sm text-light/40 mb-6">
-                        Dominio por habilidad según tu historial de práctica y código analizado. 80 %+ = dominada.
+                        Un bloque por cada PDF de "Mejora". El dominio de cada uno sale de tu historial real de práctica — no de nada inventado.
                     </p>
-                    {!metrics || Object.keys(metrics.skillMastery).length === 0 ? (
+                    {!pathId ? (
+                        <div className="text-center py-12">
+                            <p className="text-light/40 text-sm">Selecciona un camino de aprendizaje primero.</p>
+                        </div>
+                    ) : blocksProgress.length === 0 ? (
                         <div className="text-center py-12">
                             <div className="text-4xl mb-3">🌱</div>
-                            <p className="text-light/40 text-sm">Aún no hay datos de dominio. Completa ejercicios o sube tus archivos.</p>
+                            <p className="text-light/40 text-sm">Todavía no hay bloques de Mejora. Añade PDFs en Mentor → Mejora.</p>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            {Object.values(metrics.skillMastery)
-                                .sort((a, b) => b.masteryPct - a.masteryPct)
-                                .map(m => {
-                                    const color = m.masteryPct >= 80 ? 'bg-emerald-500' : m.masteryPct >= 50 ? 'bg-yellow-500' : 'bg-red-500';
-                                    const label = m.masteryPct >= 80 ? 'Dominada' : m.masteryPct >= 50 ? 'En progreso' : 'Inicio';
-                                    return (
-                                        <div key={m.skillId} className="bg-[#0f0f0f] border border-light/10 rounded-xl p-4">
+                        <div className="space-y-3">
+                            {blocksProgress.map(block => {
+                                const isOpen = expandedBlock === block.id;
+                                const color = block.masteryPct >= 70 ? 'bg-emerald-500' : block.masteryPct >= 35 ? 'bg-yellow-500' : 'bg-red-500';
+                                return (
+                                    <div key={block.id} className="bg-[#0f0f0f] border border-light/10 rounded-xl overflow-hidden">
+                                        <button
+                                            onClick={() => setExpandedBlock(isOpen ? null : block.id)}
+                                            className="w-full text-left px-4 py-3.5 hover:bg-light/5 transition-colors"
+                                        >
                                             <div className="flex items-center justify-between mb-2">
-                                                <span className="text-sm font-semibold text-light/80 truncate pr-2">{m.skillName}</span>
-                                                <span className="text-sm font-bold text-light flex-shrink-0">{m.masteryPct}%</span>
+                                                <span className="text-sm font-semibold text-light/80 truncate pr-2">
+                                                    {block.emoji} {block.title}
+                                                    <span className="ml-2 text-xs text-light/30 font-normal">{block.conceptCount} conceptos</span>
+                                                </span>
+                                                <span className="text-sm font-bold text-light flex-shrink-0">{block.masteryPct}%</span>
                                             </div>
                                             <div className="w-full h-2 bg-light/10 rounded-full overflow-hidden">
-                                                <div className={`h-full ${color} rounded-full transition-all duration-700`} style={{ width: `${m.masteryPct}%` }} />
+                                                <div className={`h-full ${color} rounded-full transition-all duration-700`} style={{ width: `${block.masteryPct}%` }} />
                                             </div>
-                                            <div className="flex items-center justify-between mt-2">
-                                                <span className="text-xs text-light/30">{label}</span>
-                                                {m.practiceCount > 0 && (
-                                                    <span className="text-xs text-light/25">{m.practiceCount} práctica{m.practiceCount !== 1 ? 's' : ''}</span>
-                                                )}
+                                        </button>
+                                        {isOpen && (
+                                            <div className="border-t border-light/10 px-4 py-3 space-y-1.5">
+                                                {getPracticePathProgress(pathId, block.id).map((c, i) => (
+                                                    <div key={c.conceptName} className="flex items-center gap-3">
+                                                        <span className="text-xs font-mono text-light/25 w-5 flex-shrink-0">{i + 1}</span>
+                                                        <span className="text-xs text-light/60 flex-1 truncate">{c.conceptName}</span>
+                                                        <span className="text-xs font-mono text-light/40 flex-shrink-0">{c.masteryPct}%</span>
+                                                    </div>
+                                                ))}
                                             </div>
-                                        </div>
-                                    );
-                                })}
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {/* ── TAB: GAP ANALYSIS ── */}
-            {activeTab === 'gap' && (
-                <div className="space-y-5">
-                    {!path ? (
-                        <div className="bg-[#1a1a1a] border border-light/10 rounded-2xl p-10 text-center">
-                            <p className="text-light/40 text-sm">Selecciona un camino de carrera para ver el análisis de brecha.</p>
-                            <button onClick={() => navigate('/elegir-camino')} className="mt-4 bg-violet-600 hover:bg-violet-500 text-white font-bold px-6 py-2.5 rounded-xl text-sm transition-all">
-                                Elegir camino →
-                            </button>
-                        </div>
-                    ) : !gap ? (
-                        <div className="bg-[#1a1a1a] border border-light/10 rounded-2xl p-10 text-center">
-                            <p className="text-light/40 text-sm">Sube tus archivos de ejercicios para que el sistema pueda calcular tu brecha de habilidades.</p>
-                        </div>
-                    ) : (
-                        <>
-                            {/* Summary bar */}
-                            <div className="bg-[#1a1a1a] border border-light/10 rounded-2xl p-6">
-                                <h2 className="text-lg font-bold text-light mb-1">Análisis de Brecha — {path.jobTitle}</h2>
-                                <p className="text-sm text-light/40 mb-5">Comparando tu nivel actual con los requisitos del mercado para {path.jobTitle}.</p>
-                                <div className="grid grid-cols-3 gap-4 text-center">
-                                    <div className="bg-emerald-900/10 border border-emerald-500/20 rounded-xl p-4">
-                                        <div className="text-3xl font-bold text-emerald-400">{gap.mastered.length}</div>
-                                        <div className="text-xs text-light/40 mt-1">Dominadas ≥80%</div>
-                                    </div>
-                                    <div className="bg-yellow-900/10 border border-yellow-500/20 rounded-xl p-4">
-                                        <div className="text-3xl font-bold text-yellow-400">{gap.inProgress.length}</div>
-                                        <div className="text-xs text-light/40 mt-1">En progreso</div>
-                                    </div>
-                                    <div className="bg-red-900/10 border border-red-500/20 rounded-xl p-4">
-                                        <div className="text-3xl font-bold text-red-400">{gap.criticalGaps.length}</div>
-                                        <div className="text-xs text-light/40 mt-1">Gaps críticos</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Mastered */}
-                            {gap.mastered.length > 0 && (
-                                <div className="bg-[#1a1a1a] border border-emerald-500/20 rounded-2xl p-6">
-                                    <h3 className="text-sm font-bold text-emerald-400 uppercase tracking-wider mb-4">✅ Habilidades dominadas</h3>
-                                    <div className="flex flex-wrap gap-2">
-                                        {gap.mastered.map(m => (
-                                            <span key={m.skillId} className="bg-emerald-900/20 border border-emerald-500/30 text-emerald-300 text-sm px-3 py-1.5 rounded-full">
-                                                {m.skillName} · {m.masteryPct}%
-                                            </span>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* In progress */}
-                            {gap.inProgress.length > 0 && (
-                                <div className="bg-[#1a1a1a] border border-yellow-500/20 rounded-2xl p-6">
-                                    <h3 className="text-sm font-bold text-yellow-400 uppercase tracking-wider mb-4">📈 En progreso — refuerza estas</h3>
-                                    <div className="space-y-3">
-                                        {gap.inProgress.map(m => (
-                                            <div key={m.skillId} className="flex items-center gap-4">
-                                                <span className="text-sm text-light/70 w-52 flex-shrink-0 truncate">{m.skillName}</span>
-                                                <div className="flex-1 h-2 bg-light/10 rounded-full overflow-hidden">
-                                                    <div className="h-full bg-yellow-500 rounded-full" style={{ width: `${m.masteryPct}%` }} />
-                                                </div>
-                                                <span className="text-sm text-yellow-400 w-10 text-right flex-shrink-0">{m.masteryPct}%</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Critical gaps */}
-                            {gap.criticalGaps.length > 0 && (
-                                <div className="bg-[#1a1a1a] border border-red-500/20 rounded-2xl p-6">
-                                    <h3 className="text-sm font-bold text-red-400 uppercase tracking-wider mb-4">🚨 Gaps críticos — necesitas aprender esto para trabajar como {path.jobTitle}</h3>
-                                    <div className="space-y-3">
-                                        {gap.criticalGaps.map(({ skill, mastery }) => (
-                                            <div key={skill.id} className="flex items-center justify-between bg-[#0f0f0f] border border-red-500/10 rounded-xl px-4 py-3 gap-4">
-                                                <div className="min-w-0">
-                                                    <p className="text-sm font-semibold text-light/80">{skill.name}</p>
-                                                    <p className="text-xs text-light/40 mt-0.5">{skill.description}</p>
-                                                </div>
-                                                <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                                                    <span className="text-sm font-bold text-red-400">{mastery ? `${mastery.masteryPct}%` : '0%'}</span>
-                                                    <button
-                                                        onClick={() => navigate(`/mentor?skillRef=${encodeURIComponent(skill.name)}&taskTitle=${encodeURIComponent(skill.name)}`)}
-                                                        className="text-xs text-violet-400 hover:text-violet-300 transition-colors whitespace-nowrap"
-                                                    >
-                                                        Practicar →
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Not started */}
-                            {gap.notStarted.length > 0 && (
-                                <div className="bg-[#1a1a1a] border border-light/10 rounded-2xl p-6">
-                                    <h3 className="text-sm font-bold text-light/40 uppercase tracking-wider mb-4">📚 Sin empezar ({gap.notStarted.length} habilidades)</h3>
-                                    <div className="flex flex-wrap gap-2">
-                                        {gap.notStarted.slice(0, 12).map(s => (
-                                            <span key={s.id} className="bg-light/5 border border-light/10 text-light/40 text-xs px-2.5 py-1 rounded-full">{s.name}</span>
-                                        ))}
-                                        {gap.notStarted.length > 12 && (
-                                            <span className="text-xs text-light/25 self-center">+{gap.notStarted.length - 12} más</span>
                                         )}
                                     </div>
-                                </div>
-                            )}
-                        </>
+                                );
+                            })}
+                        </div>
                     )}
                 </div>
             )}

@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation, Navigate } from 'react-router-dom';
-import { getPathById, isSkillMastered, calculateProgress, getAvailableSkills } from '../../data/careerPaths';
+import { getPathById, isSkillMastered, getAvailableSkills } from '../../data/careerPaths';
 import { loadSelectedPath, loadSelfAssessments, saveSelfAssessments } from '../../lib/selectedPath';
 import { loadKnowledgeProfile } from '../../lib/knowledgeProfile';
 import { isOnboardingComplete, getDiagnosticResult, getDailyPlan, completeTask, todayString, saveDailyPlan, saveMasterFeedback } from '../../lib/userProgress';
 import { generateDailyPlan, generateMasterFeedback } from '../../ai/diagnosticAgent';
-import { recordPractice, getHabilidadesValidadas, getActiveSkills, loadMetrics } from '../../lib/learningMetrics';
-import { seedConceptRegistry } from '../../lib/masteryEngine';
+import { recordPractice, getHabilidadesValidadas, getActiveSkills } from '../../lib/learningMetrics';
+import { seedConceptRegistry, getOverallMasteryPct, getAllBlocksProgress } from '../../lib/masteryEngine';
 import { getActiveMentorTaskId } from './MentorPage';
 import { getTodayTest } from '../../lib/dailyTest';
 
@@ -133,8 +133,11 @@ const PathDashboard: React.FC = () => {
     }
 
     const diagResult = pathId ? getDiagnosticResult(pathId) : null;
-    const metrics = pathId ? loadMetrics(pathId) : null;
-    const { pct, mastered, total, criticalMastered, criticalTotal } = calculateProgress(path, profileConcepts, assessments, metrics?.skillMastery);
+    // Progress % = average mastery across every Mejora-block concept, driven
+    // by real practice — same number shown in the top nav and in Mi Perfil.
+    const pct = pathId ? getOverallMasteryPct(pathId) : 0;
+    const blocksProgress = pathId ? getAllBlocksProgress(pathId) : [];
+    const blocksMastered = blocksProgress.filter(b => b.masteryPct >= 70).length;
     const col = pathColors[path.id] ?? pathColors['fullstack-dev'];
 
     const masteredSkills = path.skills.filter(s => isSkillMastered(s, profileConcepts, assessments));
@@ -237,8 +240,7 @@ const PathDashboard: React.FC = () => {
                     <div className={`h-full ${col.bar} rounded-full transition-all duration-700`} style={{ width: `${pct}%` }} />
                 </div>
                 <div className="flex justify-between mt-2 text-sm text-light/30">
-                    <span>{criticalMastered}/{criticalTotal} habilidades clave dominadas</span>
-                    <span>{mastered}/{total} total</span>
+                    <span>{blocksMastered}/{blocksProgress.length} bloques de Mejora dominados</span>
                 </div>
             </div>
 
