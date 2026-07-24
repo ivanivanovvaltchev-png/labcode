@@ -177,6 +177,28 @@ export function getAllBlocksProgress(pathId: string): {
 }
 
 /**
+ * Same data as getAllBlocksProgress()/getOverallMasteryPct(), formatted as
+ * readable text — fed straight into the Maestro free-chat prompt so it can
+ * answer "¿cómo voy?" with real numbers instead of guessing.
+ */
+export function getProgressSummaryText(pathId: string): string {
+    const overall = getOverallMasteryPct(pathId);
+    const blocks = getAllBlocksProgress(pathId);
+    if (blocks.length === 0) return 'El alumno todavía no tiene ningún bloque de Mejora con contenido.';
+
+    const lines = blocks
+        .slice()
+        .sort((a, b) => b.masteryPct - a.masteryPct)
+        .map(b => {
+            const label = b.masteryPct >= 70 ? 'dominado' : b.masteryPct >= 35 ? 'en progreso' : 'recién empezado';
+            return `- ${b.emoji} ${b.title}: ${b.masteryPct}% (${label}, ${b.conceptCount} conceptos)`;
+        })
+        .join('\n');
+
+    return `Progreso global (media de dominio de todos los conceptos de todos los bloques): ${overall}%\n\nPor bloque:\n${lines}`;
+}
+
+/**
  * Returns per-concept mastery plus an aggregate percentage for a single
  * Mejora section (one PDF) — used by the "Mejora" panel to show progress
  * per PDF, never mixing concepts from other PDFs.

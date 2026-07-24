@@ -78,3 +78,25 @@ export function getAllMejoraSections(): MejoraSection[] {
 export function getMejoraSectionById(id: string): MejoraSection | undefined {
     return getAllMejoraSections().find(s => s.id === id);
 }
+
+/**
+ * A compact index of EVERY concept in EVERY Mejora block/section — block
+ * title + source PDF(s), then each concept's real name and description.
+ * This is the "base knowledge" for the Maestro free-chat mode: unlike the
+ * Mejora focus mode (which injects the full raw PDF text but only for ONE
+ * block), Maestro needs to know about the WHOLE curriculum at once, so it
+ * uses the curated concept summaries instead of every PDF's full text —
+ * still grounded in the real slides (nothing invented), just condensed
+ * enough to fit comfortably in one prompt.
+ */
+export function getMejoraKnowledgeIndex(): string {
+    return getAllMejoraSections()
+        .map(section => {
+            const sourceNames = section.sources.map(s => s.fileName).join(', ');
+            const conceptLines = section.concepts
+                .map(c => `  • ${c.name}: ${c.description}`)
+                .join('\n');
+            return `### BLOQUE: ${section.title} (fuente: ${sourceNames})\n${conceptLines}`;
+        })
+        .join('\n\n');
+}

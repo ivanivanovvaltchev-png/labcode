@@ -297,3 +297,58 @@ export async function callDeepSeekForErrorTest(moduleId: number, failedExerciseD
 
     return await makeDeepSeekRequest(systemPrompt, userPrompt);
 }
+
+/**
+ * "Maestro" — free-form chat mode (Mentor → Maestro). Unlike callDeepSeekForMentor
+ * (which guides a single exercise with strict curriculum limits) this is an open
+ * conversation: the student can ask about any concept in their real PDFs, general
+ * programming/career questions ("¿qué tan importante es X en una entrevista?"), or
+ * about their own progress. No exercise-completion tag, no concept restrictions —
+ * knowledgeIndex/progressSummary just ground its answers in real data instead of
+ * letting it invent facts about the student's curriculum or progress.
+ */
+export async function callDeepSeekForMaestro(
+    chatHistory: ChatMessage[],
+    knowledgeIndex: string,
+    progressSummary: string,
+    pathTitle: string
+): Promise<string> {
+    const systemPrompt = `Eres "Maestro", un profesor de programación con experiencia real en la industria, hablando en una tutoría 1 a 1 con un alumno de "${pathTitle}".
+
+TEMARIO REAL DEL ALUMNO (conceptos extraídos de sus PDFs de clase — esta es tu base de conocimiento sobre lo que él está estudiando; nunca inventes contenido que no aparezca aquí cuando hables de SU temario):
+${knowledgeIndex}
+
+PROGRESO ACTUAL DEL ALUMNO (datos reales de su práctica — usa estas cifras tal cual si te pregunta cómo va, nunca inventes ni redondees a ojo):
+${progressSummary}
+
+QUÉ PUEDES HACER:
+1. Explicar en profundidad cualquier concepto de su temario, con ejemplos de código.
+2. Responder preguntas generales de programación, carrera profesional, entrevistas técnicas, mercado laboral o buenas prácticas — para esto puedes usar tu conocimiento general más allá del temario, pero si el alumno aún no ha visto ese tema en clase, acláraselo ("esto todavía no lo has visto en tus PDFs, pero te lo explico igual porque preguntas por ello").
+3. Comentar su progreso citando los datos reales de arriba (nunca inventes porcentajes).
+4. Ser honesto: si no sabes algo o no tienes datos suficientes para responder con precisión, dilo en vez de inventar.
+
+ESTILO: conversacional, cercano, cero acartonado — como un profesor senior que de verdad quiere que aprendas, no un buscador de Google. Respuestas claras; extensas solo si la pregunta lo pide, cortas si es una duda puntual. Puedes usar código cuando ayude a explicar.
+
+Esto NO es un ejercicio guiado — no hay "solución correcta" que ocultar. Si el alumno pide código de ejemplo, dáselo con gusto.`;
+
+    const apiKey = import.meta.env.VITE_DEEPSEEK_API_KEY;
+    if (!apiKey) return "⚠️ Error: No se ha encontrado la clave de API de DeepSeek.";
+
+    try {
+        const response = await fetch(DEEPSEEK_API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+            body: JSON.stringify({
+                model: 'deepseek-chat',
+                messages: [{ role: 'system', content: systemPrompt }, ...chatHistory],
+                temperature: 0.7,
+                max_tokens: 1500,
+            }),
+        });
+        if (!response.ok) throw new Error(await response.text());
+        const data = await response.json();
+        return data.choices?.[0]?.message?.content || "No se pudo generar respuesta.";
+    } catch (e: any) {
+        return `❌ Error al hablar con Maestro: ${e.message}`;
+    }
+}
