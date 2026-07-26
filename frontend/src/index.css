@@ -12,3 +12,11 @@
     @apply bg-[#0f0f0f] text-light font-sans antialiased;
   }
 }
+
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}

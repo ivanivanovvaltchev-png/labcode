@@ -190,7 +190,7 @@ function sanitizeLLMJson(raw: string): string {
         .replace(/,(\s*[}\]])/g, '$1');                            // trailing commas
 }
 
-async function deepSeekJSON<T>(systemPrompt: string, userPrompt: string, temperature = 0.3, maxTokens = 2000): Promise<T> {
+async function deepSeekJSON<T>(systemPrompt: string, userPrompt: string, temperature = 0.3, maxTokens = 2000, unwrap = true): Promise<T> {
     const apiKey = import.meta.env.VITE_DEEPSEEK_API_KEY;
     if (!apiKey) throw new Error('No API Key');
 
@@ -215,7 +215,7 @@ async function deepSeekJSON<T>(systemPrompt: string, userPrompt: string, tempera
             try {
                 const parsed = JSON.parse(sanitized);
                 // Unwrap {"questions":[...]} or {"tasks":[...]} or similar single-key array wrappers
-                if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                if (unwrap && parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
                     const keys = Object.keys(parsed);
                     if (keys.length === 1 && Array.isArray(parsed[keys[0]])) {
                         return parsed[keys[0]] as T;
@@ -713,7 +713,7 @@ ${conversationText}
 
 Genera el plan semanal cíclico (JSON con "title" y "days") según lo que se ha hablado. Semilla: ${Math.random().toString(36).slice(2, 8)}.`;
 
-    const rawResult = await deepSeekJSON<{ title?: string; days?: WeeklyPlanDayRaw[] }>(systemPrompt, userPrompt, 0.5, 3000);
+    const rawResult = await deepSeekJSON<{ title?: string; days?: WeeklyPlanDayRaw[] }>(systemPrompt, userPrompt, 0.5, 3000, false);
     const days = rawResult.days ?? [];
     if (days.length === 0) throw new Error('Maestro no pudo generar un plan semanal válido. Inténtalo de nuevo.');
 

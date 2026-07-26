@@ -77,32 +77,32 @@ const Navigation: React.FC<NavigationProps> = ({ user = 'Estudiante', userId }) 
                 </div>
 
                 {/* ── Center: Nav links ── */}
-                <div className="flex-1 flex items-center justify-center gap-2">
+                <div className="flex-1 flex items-center justify-center gap-1.5 sm:gap-2 overflow-x-auto scrollbar-none px-1">
                     {activePath && col ? (
                         <Link
                             to="/camino"
-                            className={`text-sm font-bold flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors ${col.cls}`}
+                            className={`text-sm font-bold flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors whitespace-nowrap flex-shrink-0 ${col.cls}`}
                         >
                             <span>{activePath.emoji}</span>
-                            <span className="hidden md:inline">{activePath.title}</span>
+                            <span className="hidden md:inline max-w-[140px] truncate">{activePath.title}</span>
                             <span className="md:hidden">Camino</span>
                         </Link>
                     ) : (
                         <Link
                             to="/elegir-camino"
-                            className="text-sm font-bold text-light/50 hover:text-light flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-light/10 hover:border-light/30 transition-colors"
+                            className="text-sm font-bold text-light/50 hover:text-light flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-light/10 hover:border-light/30 transition-colors whitespace-nowrap flex-shrink-0"
                         >
                             🎯 <span className="hidden sm:inline">Elegir camino</span>
                         </Link>
                     )}
 
-                    <div className="relative" ref={mentorRef}>
+                    <div className="relative flex-shrink-0" ref={mentorRef}>
                         <button
                             onClick={() => setMentorOpen(v => !v)}
-                            className="text-sm font-bold text-violet-400 hover:text-violet-300 flex items-center gap-1.5 bg-violet-900/20 px-3 py-1.5 rounded-lg border border-violet-500/30 transition-colors"
+                            className="text-sm font-bold text-violet-400 hover:text-violet-300 flex items-center gap-1.5 bg-violet-900/20 px-3 py-1.5 rounded-lg border border-violet-500/30 transition-colors whitespace-nowrap"
                         >
                             🧠 <span className="hidden lg:inline">Mentor</span>
-                            <svg className="w-3 h-3 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <svg className="w-3 h-3 opacity-60 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                             </svg>
                         </button>
@@ -159,19 +159,19 @@ const Navigation: React.FC<NavigationProps> = ({ user = 'Estudiante', userId }) 
                         )}
                     </div>
 
-                    <Link to="/plan-semanal" className="text-sm font-bold text-purple-400 hover:text-purple-300 flex items-center gap-1.5 bg-purple-900/20 px-3 py-1.5 rounded-lg border border-purple-500/30 transition-colors">
-                        📅 <span className="hidden lg:inline">Plan Semanal</span>
+                    <Link to="/plan-semanal" className="text-sm font-bold text-purple-400 hover:text-purple-300 flex items-center gap-1.5 bg-purple-900/20 px-3 py-1.5 rounded-lg border border-purple-500/30 transition-colors whitespace-nowrap flex-shrink-0">
+                        📅 <span className="hidden lg:inline">Plan</span>
                     </Link>
 
-                    <Link to="/perfil-aprendizaje" className="text-sm font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1.5 bg-emerald-900/20 px-3 py-1.5 rounded-lg border border-emerald-500/30 transition-colors">
-                        📂 <span className="hidden lg:inline">Mi Perfil</span>
+                    <Link to="/perfil-aprendizaje" className="text-sm font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1.5 bg-emerald-900/20 px-3 py-1.5 rounded-lg border border-emerald-500/30 transition-colors whitespace-nowrap flex-shrink-0">
+                        📂 <span className="hidden lg:inline">Perfil</span>
                     </Link>
 
-                    <Link to="/test-diario" className="text-sm font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1.5 bg-amber-900/20 px-3 py-1.5 rounded-lg border border-amber-500/30 transition-colors">
+                    <Link to="/test-diario" className="text-sm font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1.5 bg-amber-900/20 px-3 py-1.5 rounded-lg border border-amber-500/30 transition-colors whitespace-nowrap flex-shrink-0">
                         🧪 <span className="hidden lg:inline">Test</span>
                     </Link>
 
-                    <Link to="/error-test" className="text-sm font-bold text-red-400 hover:text-red-300 flex items-center gap-1.5 bg-red-900/20 px-3 py-1.5 rounded-lg border border-red-500/30 transition-colors">
+                    <Link to="/error-test" className="text-sm font-bold text-red-400 hover:text-red-300 flex items-center gap-1.5 bg-red-900/20 px-3 py-1.5 rounded-lg border border-red-500/30 transition-colors whitespace-nowrap flex-shrink-0">
                         ⚠️ <span className="hidden lg:inline">Errores</span>
                     </Link>
                 </div>
