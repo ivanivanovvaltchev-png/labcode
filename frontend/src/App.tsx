@@ -10,6 +10,7 @@ import { Session } from '@supabase/supabase-js';
 import { ProgressiveExerciseView } from './components/exercises/ProgressiveExerciseView';
 import MentorPage from './components/modules/MentorPage';
 import MaestroPage from './components/modules/MaestroPage';
+import WeeklyPlanPage from './components/modules/WeeklyPlanPage';
 import PracticePage from './components/modules/PracticePage';
 import ImprovePage from './components/modules/ImprovePage';
 import KnowledgePage from './components/modules/KnowledgePage';
@@ -64,6 +65,7 @@ const AppRoutes: React.FC<{ user: string; xp: number }> = ({ user, xp }) => {
             <Route path="/ejercicios-progresivos" element={<ProgressiveExerciseView />} />
             <Route path="/mentor" element={<MentorPage key={mentorSessionKey} />} />
             <Route path="/maestro" element={<MaestroPage />} />
+            <Route path="/plan-semanal" element={<WeeklyPlanPage />} />
             <Route path="/practica" element={<PracticePage />} />
             <Route path="/mejora" element={<ImprovePage />} />
             <Route path="/perfil-aprendizaje" element={<KnowledgePage />} />

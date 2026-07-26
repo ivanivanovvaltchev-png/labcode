@@ -159,6 +159,10 @@ const Navigation: React.FC<NavigationProps> = ({ user = 'Estudiante', userId }) 
                         )}
                     </div>
 
+                    <Link to="/plan-semanal" className="text-sm font-bold text-purple-400 hover:text-purple-300 flex items-center gap-1.5 bg-purple-900/20 px-3 py-1.5 rounded-lg border border-purple-500/30 transition-colors">
+                        📅 <span className="hidden lg:inline">Plan Semanal</span>
+                    </Link>
+
                     <Link to="/perfil-aprendizaje" className="text-sm font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1.5 bg-emerald-900/20 px-3 py-1.5 rounded-lg border border-emerald-500/30 transition-colors">
                         📂 <span className="hidden lg:inline">Mi Perfil</span>
                     </Link>

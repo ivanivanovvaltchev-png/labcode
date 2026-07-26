@@ -644,6 +644,82 @@ Genera el plan de entrenamiento de hoy (JSON con clave "tasks", 3 tarjetas) seg�
     return result;
 }
 
+// ─── Maestro-generated WEEKLY (cyclic, multi-day) plan ────────────────────────
+
+export interface WeeklyPlanDayRaw {
+    theme: string;
+    description: string;
+    descriptionMedio?: string;
+    descriptionDificil?: string;
+    skillRef: string;
+}
+
+/**
+ * Turns a Maestro conversation into a CYCLIC multi-day training routine —
+ * e.g. the student asked for a recurring plan ("qué practicar cada día para
+ * el mercado laboral") and Maestro proposed something like "Día 1: el
+ * procesador de datos / Día 2: el validador / Día 3: POO aplicado / …". This
+ * extracts that structure (or designs a sensible one if the conversation
+ * didn't land on an explicit day-by-day breakdown) into real, executable
+ * exercise days — same Fácil/Medio/Difícil format as a daily plan card, just
+ * one per day of the cycle instead of 3 for a single day.
+ */
+export async function generateWeeklyPlanFromMaestro(
+    chatHistory: { role: 'user' | 'assistant'; content: string }[],
+    knowledgeIndex: string,
+    progressSummary: string,
+    pathTitle: string
+): Promise<{ title: string; days: WeeklyPlanDayRaw[] }> {
+    const conversationText = chatHistory
+        .slice(-24)
+        .map(m => `${m.role === 'user' ? 'Alumno' : 'Maestro'}: ${m.content}`)
+        .join('\n\n');
+
+    const systemPrompt = `Eres el generador de PLANES SEMANALES CÍCLICOS de "Maestro", para un alumno de "${pathTitle}". Devuelve ÚNICAMENTE el JSON indicado, sin texto extra ni markdown.
+
+TEMARIO REAL DEL ALUMNO (única fuente de verdad — nunca inventes conceptos, métodos o sintaxis que no aparezcan aquí):
+${knowledgeIndex}
+
+PROGRESO ACTUAL DEL ALUMNO:
+${progressSummary}
+
+El alumno ha tenido esta conversación con Maestro pidiendo un plan de entrenamiento RECURRENTE (varios días distintos que se repiten en ciclo, no un único plan de un solo día) — por ejemplo para reforzar cada día los conceptos más importantes para el mercado laboral.
+
+TU TRABAJO:
+- Si en la conversación Maestro ya propuso una estructura de días concreta (ej. "Día 1: el procesador de datos", "Día 2: el validador"…), RESPETA esa estructura: mismo número de días, mismos temas/casos reales, mismo orden.
+- Si la conversación no llegó a una estructura clara día por día, diseña tú una (entre 3 y 6 días) que cubra de forma equilibrada los conceptos que el alumno pidió reforzar.
+- Cada día debe tener un caso real y concreto (un escenario del día a día de un desarrollador Python), no un enunciado abstracto.
+- Cada día se centra en uno o dos conceptos REALES del temario de arriba — nunca inventes sintaxis que el alumno no haya visto.
+- No repitas literalmente el mismo enunciado en las 3 versiones de dificultad de un día.
+
+FORMATO — devuelve exactamente este JSON object:
+{
+  "title": "Título corto del plan, ej. 'Lo más importante para el mercado laboral'",
+  "days": [
+    {
+      "theme": "Nombre corto del día, ej. 'El procesador de datos del día'",
+      "description": "VERSIÓN FÁCIL: enunciado completo del caso real, con pasos numerados y ejemplo de datos.",
+      "descriptionMedio": "VERSIÓN MEDIA: describe el escenario y el objetivo, sin pasos ni nombres de función.",
+      "descriptionDificil": "VERSIÓN DIFÍCIL: máximo 2-3 frases, solo el objetivo del caso real.",
+      "skillRef": "<nombre EXACTO del concepto principal de este día, tal cual aparece en el temario de arriba>"
+    }
+  ]
+}`;
+
+    const userPrompt = `Conversación reciente entre el alumno y Maestro:
+---
+${conversationText}
+---
+
+Genera el plan semanal cíclico (JSON con "title" y "days") según lo que se ha hablado. Semilla: ${Math.random().toString(36).slice(2, 8)}.`;
+
+    const rawResult = await deepSeekJSON<{ title?: string; days?: WeeklyPlanDayRaw[] }>(systemPrompt, userPrompt, 0.5, 3000);
+    const days = rawResult.days ?? [];
+    if (days.length === 0) throw new Error('Maestro no pudo generar un plan semanal válido. Inténtalo de nuevo.');
+
+    return { title: rawResult.title ?? 'Plan de Maestro', days };
+}
+
 // ─── Master Feedback ─────────────────────────────────────────────────────────
 
 export async function generateMasterFeedback(tasks: DailyTask[], pathTitle: string): Promise<string> {

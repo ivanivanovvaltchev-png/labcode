@@ -1,12 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { callDeepSeekForMaestro, ChatMessage } from '../../ai/agents';
-import { generateMaestroPlan, DailyTaskRaw } from '../../ai/diagnosticAgent';
+import { generateMaestroPlan, DailyTaskRaw, generateWeeklyPlanFromMaestro, WeeklyPlanDayRaw } from '../../ai/diagnosticAgent';
 import { loadSelectedPath } from '../../lib/selectedPath';
 import { getPathById } from '../../data/careerPaths';
 import { getMejoraKnowledgeIndex } from '../../lib/mejoraSections';
 import { getProgressSummaryText } from '../../lib/masteryEngine';
 import { getDailyPlan, saveDailyPlan, todayString } from '../../lib/userProgress';
+import { saveWeeklyPlan, WeeklyPlan } from '../../lib/weeklyPlan';
 
 const STORAGE_KEY = 'labcode_maestro_session';
 
@@ -39,6 +40,10 @@ const MaestroPage: React.FC = () => {
     const [proposedPlan, setProposedPlan] = useState<DailyTaskRaw[] | null>(null);
     const [planError, setPlanError] = useState<string | null>(null);
     const [planSaved, setPlanSaved] = useState(false);
+    const [isGeneratingWeeklyPlan, setIsGeneratingWeeklyPlan] = useState(false);
+    const [proposedWeeklyPlan, setProposedWeeklyPlan] = useState<{ title: string; days: WeeklyPlanDayRaw[] } | null>(null);
+    const [weeklyPlanError, setWeeklyPlanError] = useState<string | null>(null);
+    const [weeklyPlanSaved, setWeeklyPlanSaved] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const pathId = loadSelectedPath();
@@ -80,6 +85,9 @@ const MaestroPage: React.FC = () => {
         setProposedPlan(null);
         setPlanError(null);
         setPlanSaved(false);
+        setProposedWeeklyPlan(null);
+        setWeeklyPlanError(null);
+        setWeeklyPlanSaved(false);
     };
 
     const handleGeneratePlan = async () => {
@@ -116,6 +124,39 @@ const MaestroPage: React.FC = () => {
         setPlanSaved(true);
     };
 
+    const handleGenerateWeeklyPlan = async () => {
+        if (messages.length === 0 || isGeneratingWeeklyPlan) return;
+        setIsGeneratingWeeklyPlan(true);
+        setWeeklyPlanError(null);
+        setWeeklyPlanSaved(false);
+        try {
+            const knowledgeIndex = getMejoraKnowledgeIndex();
+            const progressSummary = pathId ? getProgressSummaryText(pathId) : 'El alumno todavía no ha seleccionado un camino de aprendizaje.';
+            const plan = await generateWeeklyPlanFromMaestro(messages, knowledgeIndex, progressSummary, path?.title ?? 'Programación');
+            setProposedWeeklyPlan(plan);
+        } catch (err) {
+            setWeeklyPlanError(err instanceof Error ? err.message : 'Error desconocido generando el plan semanal.');
+        }
+        setIsGeneratingWeeklyPlan(false);
+    };
+
+    const handleApplyWeeklyPlan = () => {
+        if (!pathId || !proposedWeeklyPlan) return;
+        const plan: WeeklyPlan = {
+            title: proposedWeeklyPlan.title,
+            createdAt: Date.now(),
+            startDate: todayString(),
+            days: proposedWeeklyPlan.days.map((d, i) => ({
+                ...d,
+                id: `weekly-day-${Date.now()}-${i}`,
+                dayNumber: i + 1,
+            })),
+            completedDates: {},
+        };
+        saveWeeklyPlan(pathId, plan);
+        setWeeklyPlanSaved(true);
+    };
+
     return (
         <div className="max-w-4xl mx-auto p-4 sm:p-6 lg:p-8">
             <div className="flex items-center justify-between gap-4 mb-3">
@@ -130,6 +171,15 @@ const MaestroPage: React.FC = () => {
                             className="text-xs text-amber-300 hover:text-amber-200 border border-amber-500/30 bg-amber-900/10 hover:bg-amber-900/20 disabled:opacity-40 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
                         >
                             {isGeneratingPlan ? 'Generando…' : '📋 Crear plan de entrenamiento con esto'}
+                        </button>
+                    )}
+                    {messages.length > 0 && (
+                        <button
+                            onClick={handleGenerateWeeklyPlan}
+                            disabled={isGeneratingWeeklyPlan}
+                            className="text-xs text-violet-300 hover:text-violet-200 border border-violet-500/30 bg-violet-900/10 hover:bg-violet-900/20 disabled:opacity-40 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+                        >
+                            {isGeneratingWeeklyPlan ? 'Generando…' : '📅 Crear plan semanal (cíclico) con esto'}
                         </button>
                     )}
                     {messages.length > 0 && (
@@ -181,6 +231,55 @@ const MaestroPage: React.FC = () => {
                     <button
                         onClick={() => navigate('/camino')}
                         className="text-sm bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded-xl transition-all whitespace-nowrap"
+                    >
+                        Ir ahora →
+                    </button>
+                </div>
+            )}
+
+            {weeklyPlanError && (
+                <div className="mb-3 bg-red-900/20 border border-red-500/30 rounded-xl px-4 py-3 text-sm text-red-300">
+                    ❌ {weeklyPlanError}
+                </div>
+            )}
+
+            {proposedWeeklyPlan && !weeklyPlanSaved && (
+                <div className="mb-3 bg-[#1a1a1a] border border-violet-500/30 rounded-2xl p-5">
+                    <p className="text-sm font-bold text-violet-300 mb-1">📅 {proposedWeeklyPlan.title}</p>
+                    <p className="text-xs text-light/40 mb-4">
+                        Plan cíclico de {proposedWeeklyPlan.days.length} días basado en tu conversación con Maestro. Se repetirá en bucle empezando hoy — podrás practicarlo cada día desde "Plan Semanal".
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                        {proposedWeeklyPlan.days.map((day, i) => (
+                            <div key={i} className="bg-[#0f0f0f] border border-light/10 rounded-xl p-3">
+                                <p className="text-xs font-bold text-violet-300/80 mb-1">Día {i + 1} · {day.theme}</p>
+                                <p className="text-xs text-light/40 leading-relaxed line-clamp-4">{day.description}</p>
+                            </div>
+                        ))}
+                    </div>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={handleApplyWeeklyPlan}
+                            className="bg-violet-600 hover:bg-violet-500 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition-all"
+                        >
+                            ✅ Activar como plan semanal
+                        </button>
+                        <button
+                            onClick={() => setProposedWeeklyPlan(null)}
+                            className="text-sm text-light/40 hover:text-light/70 border border-light/10 px-4 py-2.5 rounded-xl transition-colors"
+                        >
+                            Descartar
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {weeklyPlanSaved && (
+                <div className="mb-3 bg-violet-900/15 border border-violet-500/30 rounded-2xl p-4 flex items-center justify-between gap-4">
+                    <p className="text-sm text-violet-300">✅ Plan semanal activado — el ciclo empieza hoy.</p>
+                    <button
+                        onClick={() => navigate('/plan-semanal')}
+                        className="text-sm bg-violet-600 hover:bg-violet-500 text-white font-bold px-4 py-2 rounded-xl transition-all whitespace-nowrap"
                     >
                         Ir ahora →
                     </button>
