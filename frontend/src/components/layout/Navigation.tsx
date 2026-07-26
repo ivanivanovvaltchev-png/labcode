@@ -77,7 +77,7 @@ const Navigation: React.FC<NavigationProps> = ({ user = 'Estudiante', userId }) 
                 </div>
 
                 {/* ── Center: Nav links ── */}
-                <div className="flex-1 flex items-center justify-center gap-1.5 sm:gap-2 overflow-x-auto scrollbar-none px-1">
+                <div className="flex-1 flex items-center justify-center flex-wrap gap-1.5 sm:gap-2 px-1">
                     {activePath && col ? (
                         <Link
                             to="/camino"
