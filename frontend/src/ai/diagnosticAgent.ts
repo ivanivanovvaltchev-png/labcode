@@ -690,6 +690,7 @@ TU TRABAJO:
 - Si la conversación no llegó a una estructura clara día por día, diseña tú una (entre 3 y 6 días) que cubra de forma equilibrada los conceptos que el alumno pidió reforzar.
 - Cada día debe tener un caso real y concreto (un escenario del día a día de un desarrollador Python), no un enunciado abstracto.
 - Cada día se centra en uno o dos conceptos REALES del temario de arriba — nunca inventes sintaxis que el alumno no haya visto.
+- PROHIBIDO usar en el código de ejemplo cualquier módulo, función o método que no aparezca literalmente en el TEMARIO REAL de arriba — esto incluye módulos completos como "os", "sys", "glob", "shutil", "pathlib", "csv", "json", "argparse", etc. Si un caso real (ej. "combinar varios archivos de una carpeta") normalmente usaría uno de esos módulos pero el alumno no los ha visto, resuélvelo SOLO con lo que sí ha visto (ej. open()/with open() archivo por archivo, con nombres de archivo escritos a mano en una lista, no leídos de una carpeta con os.listdir).
 - No repitas literalmente el mismo enunciado en las 3 versiones de dificultad de un día.
 
 FORMATO — devuelve exactamente este JSON object:
@@ -706,16 +707,36 @@ FORMATO — devuelve exactamente este JSON object:
   ]
 }`;
 
-    const userPrompt = `Conversación reciente entre el alumno y Maestro:
+    const buildUserPrompt = (correction?: string) => `Conversación reciente entre el alumno y Maestro:
 ---
 ${conversationText}
 ---
 
-Genera el plan semanal cíclico (JSON con "title" y "days") según lo que se ha hablado. Semilla: ${Math.random().toString(36).slice(2, 8)}.`;
+Genera el plan semanal cíclico (JSON con "title" y "days") según lo que se ha hablado. Semilla: ${Math.random().toString(36).slice(2, 8)}.${correction ? `\n\n${correction}` : ''}`;
 
-    const rawResult = await deepSeekJSON<{ title?: string; days?: WeeklyPlanDayRaw[] }>(systemPrompt, userPrompt, 0.5, 3000, false);
-    const days = rawResult.days ?? [];
+    const UNTAUGHT_MODULES = ['os', 'sys', 'glob', 'shutil', 'pathlib', 'csv', 'json', 'argparse', 're', 'subprocess'];
+    const findUntaughtModuleImport = (days: WeeklyPlanDayRaw[]): string | null => {
+        const text = days.map(d => `${d.description} ${d.descriptionMedio ?? ''} ${d.descriptionDificil ?? ''}`).join(' ');
+        for (const mod of UNTAUGHT_MODULES) {
+            const usedAsImport = new RegExp(`\\bimport\\s+${mod}\\b`).test(text);
+            if (usedAsImport && !new RegExp(`\\bimport\\s+${mod}\\b`).test(knowledgeIndex)) return mod;
+        }
+        return null;
+    };
+
+    let rawResult = await deepSeekJSON<{ title?: string; days?: WeeklyPlanDayRaw[] }>(systemPrompt, buildUserPrompt(), 0.5, 3000, false);
+    let days = rawResult.days ?? [];
     if (days.length === 0) throw new Error('Maestro no pudo generar un plan semanal válido. Inténtalo de nuevo.');
+
+    const badModule = findUntaughtModuleImport(days);
+    if (badModule) {
+        const correction = `IMPORTANTE: en tu respuesta anterior usaste "import ${badModule}", un módulo que el alumno NO ha visto en su temario. Regenera el plan completo resolviendo ese mismo caso solo con lo que ya aparece en el TEMARIO REAL (por ejemplo open()/with open() en vez de ${badModule}). No cambies el resto de la estructura.`;
+        const retryResult = await deepSeekJSON<{ title?: string; days?: WeeklyPlanDayRaw[] }>(systemPrompt, buildUserPrompt(correction), 0.5, 3000, false);
+        if ((retryResult.days ?? []).length > 0) {
+            rawResult = retryResult;
+            days = retryResult.days!;
+        }
+    }
 
     return { title: rawResult.title ?? 'Plan de Maestro', days };
 }
