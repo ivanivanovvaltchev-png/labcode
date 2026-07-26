@@ -2527,6 +2527,427 @@ Posibles focos de error, siempre que el programa dependa de información externa
             },
         ],
     },
+    {
+        id: 'poo',
+        title: 'Programación Orientada a Objetos (POO)',
+        emoji: '🧱',
+        description: 'Clases, objetos, atributos y métodos; self y __init__; los 4 pilares del POO (abstracción, encapsulamiento, herencia, polimorfismo); herencia con super(), sobreescritura de métodos y composición de clases.',
+        reason: 'Son las dos partes de la misma clase de POO impartidas en sesiones consecutivas: la Parte 2 empieza repasando literalmente el contenido de la Parte 1 (mismo ejemplo de la clase Fruta) antes de avanzar a los 4 pilares y a la progresión completa Coche → CocheEléctrico → Bateria. Se tratan como una sola progresión pedagógica, no como dos temas distintos.',
+        prerequisites: ['funciones-basico'],
+        concepts: [
+            { id: 'poo-clases-mundo-real', name: 'Clases: representaciones del mundo real', description: 'Una clase modela una entidad del mundo real (ej. Silla, Coche) como una plantilla reutilizable de datos y comportamiento.', order: 1 },
+            { id: 'poo-objetos-instancias', name: 'Objetos: instancias de una clase', description: 'Un objeto es una instancia concreta de una clase, ej. "mi coche" es una instancia concreta de la clase Coche (por ejemplo, un Ferrari).', order: 2 },
+            { id: 'poo-atributos-metodos-concepto', name: 'Atributos (datos) y métodos (funcionalidades)', description: 'Un objeto se compone de atributos (sus datos, ej. motor, puertas) y métodos (sus funcionalidades, ej. acelerar, girar, tocar el claxon).', order: 3 },
+            { id: 'poo-sintaxis-clase-init', name: 'Sintaxis básica de una clase con __init__', description: 'class Fruta:\\n    def __init__(self):\\n        self.nombre = "manzana"\\n        self.color = "rojo"\\n — define la clase y el método especial de inicialización.', order: 4 },
+            { id: 'poo-crear-instancia', name: 'Crear una instancia y asignarla a una variable', description: 'mi_fruta = Fruta() crea un objeto de tipo Fruta y lo guarda en la variable mi_fruta.', order: 5 },
+            { id: 'poo-acceder-atributos', name: 'Acceder a los atributos de un objeto', description: 'print(mi_fruta.color) y print(mi_fruta.nombre) acceden a los atributos del objeto con la notación punto.', order: 6 },
+            { id: 'poo-reasignar-atributos', name: 'Reasignar el valor de un atributo', description: 'mi_fruta.color = "verde" cambia directamente el valor de un atributo ya existente del objeto.', order: 7 },
+            { id: 'poo-parametros-init', name: 'Parámetros en __init__ para inicializar dinámicamente', description: 'def __init__(self, nombre, color): self.nombre = nombre; self.color = color — permite crear instancias con valores distintos: Fruta("manzana", "rojo").', order: 8 },
+            { id: 'poo-argumentos-instancia', name: 'Argumentos al crear la instancia', description: 'En mi_fruta = Fruta("manzana", "rojo"), "manzana" y "rojo" son los argumentos que se asignan a los parámetros nombre y color del __init__.', order: 9 },
+            { id: 'poo-multiples-instancias', name: 'Múltiples instancias independientes de la misma clase', description: 'manzana = Fruta("manzana","rojo"); platano = Fruta("platano","amarillo"); kiwi = Fruta("kiwi","verde") — cada instancia guarda sus propios valores de atributos, independientes entre sí.', order: 10 },
+            { id: 'poo-metodos-propios', name: 'Métodos propios: funciones dentro de la clase', description: 'def details(self): print("mi " + self.nombre + " es " + self.color) — un método es una función relacionada con el objeto, definida dentro de la clase.', order: 11 },
+            { id: 'poo-self-explicado', name: 'self: referencia al propio objeto', description: 'self es el propio objeto sobre el que se llama el método (ej. si se llama manzana.details(), dentro de details self es manzana); permite que distintos métodos accedan a los mismos atributos del objeto.', order: 12 },
+            { id: 'poo-llamar-metodo', name: 'Llamar a un método de un objeto', description: 'manzana.details() ejecuta el método details definido en la clase Fruta sobre el objeto manzana.', order: 13 },
+            { id: 'poo-error-variable-local-init', name: 'Error común: variable local de __init__ inaccesible en otros métodos', description: 'Si en __init__ se define caducidad = "01.03.2023" (sin self.), es una variable local solo de __init__; usarla en otro método como details da NameError: name \'caducidad\' is not defined, porque ese otro método no la conoce.', order: 14 },
+            { id: 'poo-solucion-atributo-o-local', name: 'Solución: convertir en atributo o redefinir localmente', description: 'Opción A: usar self.caducidad = "01.03.2023" para que sea un atributo accesible desde cualquier método. Opción B: si solo se necesita en un método, definir la variable local dentro de ese método directamente.', order: 15 },
+            { id: 'poo-init-que-es', name: '__init__: qué es y cuándo se ejecuta', description: 'Se ejecuta automáticamente con cada nueva instancia de una clase (no hace falta llamarlo como al resto de métodos); es donde se inicializan los atributos; tiene un nombre reservado por Python.', order: 16 },
+            { id: 'poo-comparacion-otros-lenguajes', name: 'Comparación con otros lenguajes: this/constructora vs self/class', description: 'En JavaScript, function Fruta(nombre, clr) { this.nombre = nombre; } usa "this" y una función constructora; en Python se usa "self" dentro de "class" y el método __init__.', order: 17 },
+            { id: 'poo-terminologia-equivalencias', name: 'Terminología POO: funciones→métodos, variables self→atributos, instancia→objeto', description: 'Tabla de equivalencias: una función dentro de una clase se llama método; una variable con prefijo self. es un atributo; una instancia de una clase es un objeto.', order: 18 },
+            { id: 'poo-pilar-abstraccion', name: 'Pilar 1 — Abstracción', description: 'Simplificación y representación de entidades del mundo real como objetos en el código, que encapsulan datos y comportamientos, permitiendo enfocarse en QUÉ hace el objeto sin preocuparse del CÓMO.', order: 19 },
+            { id: 'poo-pilar-encapsulamiento', name: 'Pilar 2 — Encapsulamiento', description: 'Agrupar datos (atributos) y métodos relacionados en un mismo objeto, que actúa como una cápsula que oculta los detalles internos y revela solo una interfaz para interactuar con él, mejorando la seguridad frente a modificaciones externas directas.', order: 20 },
+            { id: 'poo-pilar-herencia', name: 'Pilar 3 — Herencia (concepto)', description: 'Una clase (subclase) hereda los atributos y métodos de otra clase (superclase), pudiendo extender o modificar su funcionalidad y añadir nuevos atributos o métodos — facilita la reutilización de código y la jerarquización.', order: 21 },
+            { id: 'poo-pilar-polimorfismo', name: 'Pilar 4 — Polimorfismo (concepto)', description: 'Distintos objetos de una jerarquía de clases pueden responder a la misma llamada de método de forma diferente, permitiendo tratarlos de manera uniforme aunque cada uno actúe según su propia implementación.', order: 22 },
+            { id: 'poo-atributo-valor-por-defecto', name: 'Atributo con valor por defecto en __init__', description: 'self.cuenta_kilometros = 0 dentro de __init__ inicializa siempre ese atributo a 0 para cualquier instancia nueva, sin necesidad de pasarlo como argumento.', order: 23 },
+            { id: 'poo-metodo-leer-atributo', name: 'Método que lee/imprime un atributo', description: 'def leer_cuentakilometros(self): print("Este coche ha recorrido un total de", self.cuenta_kilometros, "km") — expone el valor de un atributo de forma controlada.', order: 24 },
+            { id: 'poo-modificar-directo-vs-metodo', name: 'Modificar un atributo directamente vs mediante un método', description: 'mi_coche.cuenta_kilometros = 100 lo cambia directamente sin ninguna comprobación; mi_coche.actualiza_cuentakilometros(100) lo cambia a través de un método, lo que permite añadir lógica de validación.', order: 25 },
+            { id: 'poo-validacion-en-metodo', name: 'Validación dentro de un método', description: 'def actualiza_cuentakilometros(self, kilometros): if kilometros >= self.cuenta_kilometros: self.cuenta_kilometros = kilometros; else: print("No puedes disminuir el kilometraje") — evita que el objeto quede en un estado inválido.', order: 26 },
+            { id: 'poo-incrementar-atributo-metodo', name: 'Incrementar un atributo mediante un método (+=)', description: 'def aumentar_cuentakilometros(self, kilometros): self.cuenta_kilometros += kilometros — suma un valor al atributo existente en vez de sobrescribirlo.', order: 27 },
+            { id: 'poo-motivacion-herencia', name: 'Problema de duplicar código entre clases similares', description: 'Crear una clase CocheElectrico repitiendo todos los atributos y métodos de Coche es muy ineficiente — es la motivación real para introducir la herencia.', order: 28 },
+            { id: 'poo-sintaxis-herencia', name: 'Herencia: sintaxis class Hija(Padre)', description: 'class CocheElectrico(Coche): — declara CocheElectrico como subclase (child class) de Coche (parent class/superclase), heredando sus atributos y métodos.', order: 29 },
+            { id: 'poo-super-init', name: 'super().__init__() para heredar la inicialización', description: 'def __init__(self, marca, modelo, anio): super().__init__(marca, modelo, anio) — llama al __init__ de la superclase, dando a la subclase todos sus atributos sin tener que repetir el código.', order: 30 },
+            { id: 'poo-orden-definicion-clases', name: 'Orden de definición: la subclase debe ir después de la superclase', description: 'Para que la herencia funcione correctamente, la clase hija (CocheElectrico) debe estar definida después de la clase padre (Coche) dentro del mismo archivo.', order: 31 },
+            { id: 'poo-atributos-metodos-exclusivos-subclase', name: 'Añadir atributos/métodos exclusivos de la subclase', description: 'Tras heredar de Coche, CocheElectrico puede añadir sus propios atributos (self.tamanio_bateria = 70) y métodos (descripcion_bateria) que no existen en la superclase.', order: 32 },
+            { id: 'poo-polimorfismo-sobreescritura', name: 'Polimorfismo práctico: sobreescribir un método de la superclase', description: 'CocheElectrico redefine llenar_deposito() con su propia lógica ("Este coche no tiene un deposito"), sobreescribiendo el método heredado de Coche — mismo nombre de método, comportamiento distinto según la clase.', order: 33 },
+            { id: 'poo-composicion', name: 'Composición: instancia de otra clase como atributo', description: 'self.bateria = Bateria() dentro de CocheElectrico.__init__ guarda una instancia completa de la clase Bateria como atributo; se accede como mi_tesla.bateria.describir_bateria().', order: 34 },
+            { id: 'poo-cuando-usar-composicion', name: 'Cuándo extraer una clase nueva (composición vs herencia)', description: 'Cuando una clase acumula demasiados atributos y métodos relacionados con un mismo sub-aspecto (ej. la batería dentro de CocheElectrico), conviene extraerlos a una clase nueva (Bateria) y usarla por composición en vez de seguir haciendo crecer la clase original.', order: 35 },
+            { id: 'poo-reflexion-diseño-metodos', name: 'Reflexión de diseño: en qué clase debe vivir un método', description: 'Decidir si un método (ej. calcular el rango restante según la batería) pertenece a la clase Bateria o a CocheElectrico depende del contexto real del problema (ej. si distintos modelos consumen batería a distinto ritmo, el método debería vivir en CocheElectrico) — es pensar en el modelado, no solo en la sintaxis.', order: 36 },
+        ],
+        sources: [
+            {
+                fileName: 'Python-avanzado-Teoria-3-Programacion-Orientada-a-Objetos-Parte-1-Di_e59cfecc.pdf',
+                rawText: `PROGRAMACIÓN ORIENTADA A OBJETOS (POO) — PARTE 1
+
+CLASES Y OBJETOS
+Clases: representaciones del mundo real (ej. Silla, Coche).
+Objetos: una instancia de esa clase (ej. "mi coche" es una instancia concreta, un Ferrari).
+Un objeto se compone de:
+- Atributos (Datos): ej. motor, puertas
+- Métodos (Funcionalidades): ej. acelerar, girar, tocar el claxon
+
+SINTAXIS BÁSICA
+class Fruta:
+    def __init__(self):
+        self.nombre = "manzana"
+        self.color = "rojo"
+
+Podemos asignar nuestra clase a una variable:
+mi_fruta = Fruta()
+
+Podemos acceder a los atributos:
+print(mi_fruta.color)
+print(mi_fruta.nombre)
+→ rojo
+→ manzana
+
+Podemos reasignar el valor de los atributos:
+mi_fruta.color = "verde"
+mi_fruta.nombre = "pera"
+print(mi_fruta.color)
+print(mi_fruta.nombre)
+→ verde
+→ pera
+
+PARÁMETROS EN __init__
+class Fruta:
+    def __init__(self, nombre, color):
+        self.nombre = nombre
+        self.color = color
+
+mi_fruta = Fruta("manzana", "rojo")
+print(mi_fruta.color)
+print(mi_fruta.nombre)
+→ rojo
+→ manzana
+("nombre, color" en la firma son los PARÁMETROS; "manzana", "rojo" en la llamada son los ARGUMENTOS; self.nombre = nombre asigna el parámetro al atributo)
+
+MÚLTIPLES INSTANCIAS
+class Fruta:
+    def __init__(self, nombre, color):
+        self.nombre = nombre
+        self.color = color
+
+manzana = Fruta("manzana", "rojo")
+platano = Fruta("platano", "amarillo")
+kiwi = Fruta("kiwi", "verde")
+
+print(platano.nombre, platano.color)
+print(kiwi.nombre, kiwi.color)
+print(manzana.nombre, manzana.color)
+→ platano amarillo
+→ kiwi verde
+→ manzana rojo
+(Fruta es la CLASE; manzana, platano, kiwi son INSTANCIAS/OBJETOS independientes)
+
+MÉTODOS PROPIOS
+class Fruta:
+    def __init__(self, nombre, color):
+        self.nombre = nombre
+        self.color = color
+    def details(self):
+        print("mi " + self.nombre + " es " + self.color)
+
+manzana = Fruta("manzana", "roja")
+manzana.details()
+→ mi manzana es roja
+
+Los métodos son funciones relacionadas con objetos. Aunque __init__ y details hacen cosas completamente diferentes, ambos reciben self como primer parámetro y por eso pueden acceder a los mismos atributos gracias a self.
+
+Llamada al método: manzana.details()
+
+ERROR COMÚN: no usar self para un atributo
+class Fruta:
+    def __init__(self, nombre, color):
+        self.nombre = nombre
+        self.color = color
+        caducidad = "01.03.2023"
+    def details(self):
+        print("mi " + self.nombre + " es " + self.color)
+        print("caduca el ", caducidad)
+
+manzana = Fruta("manzana", "roja")
+manzana.details()
+→ mi manzana es roja
+→ NameError: name 'caducidad' is not defined
+
+Explicación: caducidad es una variable local de __init__. Al no ser un atributo (le falta self.), el método details no sabe de su existencia.
+
+SOLUCIÓN A — convertir en atributo:
+class Fruta:
+    def __init__(self, nombre, color):
+        self.nombre = nombre
+        self.color = color
+        self.caducidad = "01.03.2023"
+    def details(self):
+        print("mi " + self.nombre + " es " + self.color)
+        print("caduca el ", self.caducidad)
+→ mi manzana es roja
+→ caduca el  01.03.2023
+
+SOLUCIÓN B — definir la variable local dentro del método que la usa:
+class Fruta:
+    def __init__(self, nombre, color):
+        self.nombre = nombre
+        self.color = color
+    def details(self):
+        caducidad = "01.03.2023"
+        print("mi " + self.nombre + " es " + self.color)
+        print("caduca el ", caducidad)
+→ mi manzana es roja
+→ caduca el  01.03.2023
+
+MÉTODO __init__
+class mi_clase:
+    def __init__(self):
+        self.attrib = []
+- Es ejecutado automáticamente con cada nueva instancia de una clase (no necesitamos llamarlo como al resto de métodos)
+- Es donde inicializamos los atributos
+- Tiene el nombre reservado
+
+QUÉ ES self
+class Fruta:
+    def __init__(self, clr):
+        self.color = clr
+
+manzana = Fruta("roja")   # aquí, self = el objeto manzana (the apple object itself)
+platano = Fruta("amarillo")  # aquí, self = el objeto platano (the banana object itself)
+
+EN OTROS LENGUAJES DE PROGRAMACIÓN
+JavaScript:
+function Fruta(nombre, clr) {
+    this.nombre = nombre;
+    this.color = clr;
+}
+(usa "this" y una función constructora)
+
+Python:
+class Fruta:
+    def __init__(self, nombre, clr):
+        self.nombre = nombre
+        self.color = clr
+(usa "self" dentro de "class")
+
+QUÉ ES LA PROGRAMACIÓN ORIENTADA A OBJETOS
+- Set de principios de programación
+- Trabajamos con objetos en vez de con datos y procedimientos separados
+- Unimos datos y funcionalidad en una sola estructura, creando objetos que interactúan entre ellos
+
+TABLA DE EQUIVALENCIAS
+Funciones → Métodos
+Variables con prefijo self → Atributos
+Instancia de una clase → Objeto`,
+            },
+            {
+                fileName: 'Python-avanzado-Teoria-3-parte-2_48c65ef8.pdf',
+                rawText: `PROGRAMACIÓN ORIENTADA A OBJETOS (POO) — PARTE 2
+
+(Repaso de la Parte 1: clases como representación del mundo real, objetos como instancias, atributos y métodos, ejemplo de la clase Fruta con __init__, details() y self.caducidad — ver bloque de Parte 1.)
+
+LOS 4 PILARES DEL POO
+
+1. ABSTRACCIÓN
+Simplificación y representación de entidades del mundo real en forma de objetos en el código. Estos encapsulan datos y comportamientos, permitiendo al programador enfocarse en lo que el objeto hace sin preocuparse del cómo.
+
+2. ENCAPSULAMIENTO
+Agrupamiento de datos (atributos) y métodos (funciones) relacionados en un mismo objeto. La idea es que el objeto actúe como una cápsula que oculta los detalles internos y revela solo una interfaz para interactuar con él. De esta manera se mejora la seguridad y se evita que el código externo modifique directamente el estado interno del objeto.
+
+3. HERENCIA
+La herencia permite que una clase (subclase) herede los atributos y métodos de otra clase (superclase). La subclase puede extender o modificar la funcionalidad de la superclase y agregar nuevos atributos o métodos. Esto facilita la reutilización de código y la jerarquización.
+
+4. POLIMORFISMO
+El polimorfismo es la capacidad de diferentes objetos de una jerarquía de clases para responder a una misma llamada de método de manera diferente. Permite que objetos de diferentes clases puedan ser tratados de manera uniforme, pero actúen de forma diferente según su propia implementación. Esto aumenta la flexibilidad del código y facilita la creación de interfaces genéricas que trabajen con múltiples clases.
+
+EJEMPLO COMPLETO: CLASE COCHE
+
+Clase base:
+class Coche:
+    def __init__(self, marca, modelo, anio):
+        """Inicializamos atributos del coche"""
+        self.marca = marca
+        self.modelo = modelo
+        self.anio = anio
+
+    def crear_descripcion(self):
+        """Devolver una descripcion bien formateada"""
+        nombre_extenso = str(self.anio) + " " + self.marca + " " + self.modelo
+        return nombre_extenso
+
+mi_coche = Coche("audi", "a4", "2016")
+print(mi_coche.crear_descripcion())
+→ 2016 audi a4
+
+Añadimos un atributo con valor por defecto:
+    def __init__(self, marca, modelo, anio):
+        self.marca = marca
+        self.modelo = modelo
+        self.anio = anio
+        self.cuenta_kilometros = 0
+print(mi_coche.cuenta_kilometros)
+→ 0
+
+Método para leer el cuentakilómetros:
+    def leer_cuentakilometros(self):
+        """Imprime el valor de los kilometros recorridos"""
+        print("Este coche ha recorrido un total de", self.cuenta_kilometros, "km")
+mi_coche.leer_cuentakilometros()
+→ Este coche ha recorrido un total de 0 km
+
+Modificar el atributo directamente:
+mi_coche.cuenta_kilometros = 100
+mi_coche.leer_cuentakilometros()
+→ Este coche ha recorrido un total de 100 km
+
+Modificar mediante un método:
+    def actualiza_cuentakilometros(self, kilometros):
+        """Actualiza el valor del cuentakilometros al valor dado"""
+        self.cuenta_kilometros = kilometros
+mi_coche.actualiza_cuentakilometros(100)
+mi_coche.leer_cuentakilometros()
+→ Este coche ha recorrido un total de 100 km
+
+Validación en el método (evitar disminuir el kilometraje):
+    def actualiza_cuentakilometros(self, kilometros):
+        if kilometros >= self.cuenta_kilometros:
+            self.cuenta_kilometros = kilometros
+        else:
+            print("No puedes disminuir el kilometraje")
+mi_coche.actualiza_cuentakilometros(100)
+mi_coche.leer_cuentakilometros()
+mi_coche.actualiza_cuentakilometros(50)
+mi_coche.leer_cuentakilometros()
+→ Este coche ha recorrido un total de 100 km
+→ No puedes disminuir el kilometraje
+→ Este coche ha recorrido un total de 100 km
+Esto es mucho más conveniente ya que así podemos asegurarnos de que no se cambie el kilometraje a uno menor del actual.
+
+Incrementar el valor de un atributo mediante un método:
+    def aumentar_cuentakilometros(self, kilometros):
+        """Suma el valor dado al cuentakilometros"""
+        self.cuenta_kilometros += kilometros
+mi_coche_usado.actualiza_cuentakilometros(23500)
+mi_coche_usado.leer_cuentakilometros()
+mi_coche_usado.aumentar_cuentakilometros(100)
+mi_coche_usado.leer_cuentakilometros()
+→ Este coche ha recorrido un total de 23500 km
+→ Este coche ha recorrido un total de 23600 km
+
+¿Y SI AHORA TENGO UN COCHE ELÉCTRICO?
+Podría crear otra clase CocheElectrico y añadirle los mismos atributos que a la clase Coche — esto es muy INEFICIENTE (código duplicado).
+
+SOLUCIÓN: HERENCIA
+Clase padre (superclase):
+class Coche:
+    def __init__(self, marca, modelo, anio):
+        self.marca = marca
+        self.modelo = modelo
+        self.anio = anio
+        self.cuenta_kilometros = 0
+
+    def crear_descripcion(self):
+        nombre_extenso = str(self.anio) + " " + self.marca + " " + self.modelo
+        return nombre_extenso
+
+    def leer_cuentakilometros(self):
+        print("Este coche ha recorrido un total de", self.cuenta_kilometros, "km")
+
+    def actualiza_cuentakilometros(self, kilometros):
+        if kilometros >= self.cuenta_kilometros:
+            self.cuenta_kilometros = kilometros
+        else:
+            print("No puedes disminuir el kilometraje")
+
+    def aumentar_cuentakilometros(self, kilometros):
+        self.cuenta_kilometros += kilometros
+
+Clase hija (subclase):
+class CocheElectrico(Coche):
+    """Representa aspectos de un coche, especifico para coches electricos"""
+    def __init__(self, marca, modelo, anio):
+        super().__init__(marca, modelo, anio)
+
+mi_tesla = CocheElectrico("tesla", "modelo s", 2016)
+print(mi_tesla.crear_descripcion())
+→ 2016 tesla modelo s
+
+"Coche" en class CocheElectrico(Coche): es el nombre de la superclase. super() es la función que indica a Python que conecte con la superclase — llama a __init__ de la superclase, lo que concede a la subclase todos sus atributos. mi_tesla también ha heredado los métodos de la superclase (crear_descripcion). NOTA IMPORTANTE: para que todo funcione correctamente, la subclase debe estar definida DESPUÉS de la superclase dentro del archivo.
+
+AÑADIR ATRIBUTOS/MÉTODOS EXCLUSIVOS DE LA SUBCLASE
+Una vez CocheElectrico ha heredado los atributos y métodos de Coche, se le pueden añadir métodos que solo apliquen a los coches eléctricos:
+class CocheElectrico(Coche):
+    def __init__(self, marca, modelo, anio):
+        super().__init__(marca, modelo, anio)
+        self.tamanio_bateria = 70
+
+    def descripcion_bateria(self):
+        print("Este coche tiene una bateria de tamaño", self.tamanio_bateria, "-kWh")
+
+mi_tesla = CocheElectrico("tesla", "modelo s", 2016)
+print(mi_tesla.crear_descripcion())
+mi_tesla.descripcion_bateria()
+→ 2016 tesla modelo s
+→ Este coche tiene una bateria de tamaño 70 -kWh
+
+TAMBIÉN PODEMOS SOBREESCRIBIR MÉTODOS DE LA SUPERCLASE (POLIMORFISMO)
+Superclase Coche:
+class Coche:
+    def __init__(self, marca, modelo, anio):
+        self.marca = marca
+        self.modelo = modelo
+        self.anio = anio
+        self.deposito = 0
+
+    def llenar_deposito(self):
+        """Simula el llenado del deposito del coche"""
+        self.deposito = 100
+        print("El deposito esta a", self.deposito)
+
+Subclase CocheElectrico (sobreescribe llenar_deposito):
+class CocheElectrico(Coche):
+    def __init__(self, marca, modelo, anio):
+        super().__init__(marca, modelo, anio)
+        self.tamanio_bateria = 70
+
+    def llenar_deposito(self):
+        """Los coches electricos no tienen deposito"""
+        print("Este coche no tiene un deposito")
+
+mi_audi = Coche("audi", "a4", 2015)
+mi_audi.llenar_deposito()
+mi_tesla = CocheElectrico("tesla", "modelo s", 2016)
+mi_tesla.llenar_deposito()
+→ El deposito esta a 100
+→ Este coche no tiene un deposito
+(Este es el POLIMORFISMO en la práctica: mismo nombre de método, comportamiento distinto según la clase.)
+
+CUANDO UNA CLASE CRECE DEMASIADO — COMPOSICIÓN
+Cuando estemos modelizando un elemento del mundo real puede que nos encontremos añadiendo cada vez más detalles dentro de una clase (una lista creciente de atributos y métodos), haciendo que los archivos sean muy extensos. Ejemplo: si seguimos añadiendo detalles a CocheElectrico relacionados con la batería, en algún momento toca parar y mover esos atributos y métodos a una clase nueva llamada Bateria.
+
+class Bateria:
+    """Un intento simple de modelizar una bateria"""
+    def __init__(self, tamanio_bateria = 70):
+        self.tamanio_bateria = tamanio_bateria
+
+    def describir_bateria(self):
+        print("Este coche tiene una bateria de tamaño", self.tamanio_bateria, "-kWh.")
+
+class CocheElectrico(Coche):
+    def __init__(self, marca, modelo, anio):
+        super().__init__(marca, modelo, anio)
+        self.bateria = Bateria()
+
+mi_tesla = CocheElectrico("tesla", "modelo s", 2016)
+mi_tesla.llenar_deposito()
+mi_tesla.bateria.describir_bateria()
+→ El deposito esta a 100
+→ Este coche tiene una bateria de tamaño 70 -kWh.
+(self.bateria = Bateria() es una instancia usada como atributo — esto es COMPOSICIÓN.)
+
+REFLEXIÓN: ¿DÓNDE PONER UN NUEVO MÉTODO?
+También podríamos añadir un método que calcule el rango de recorrido que le queda al coche dada la carga de la batería. ¿Ese método correspondería a la clase Bateria o a CocheElectrico? Si solo hay un coche, quizás el método podría estar en la clase Bateria. Pero si hay una línea de coches diferentes que consumen batería a distinto ritmo, puede ser conveniente que el método lea el estado de la batería y calcule el rango dado el modelo — debería estar en la clase CocheElectrico. Estas cuestiones llevan a un punto interesante en el crecimiento como programador: dejamos de pensar a nivel sintáctico y empezamos a pensar en cómo modelizar el mundo a nuestro alrededor con código.
+
+CIERRE: Algunos enfoques son más eficientes que otros, pero se necesita práctica para encontrar las representaciones más eficientes. Si tu código funciona como deseas, ¡lo estás haciendo bien! No te desanimes si descubres que estás desglosando tus clases y reescribiéndolas varias veces con enfoques diferentes — todos pasan por este proceso en la búsqueda de un código preciso y eficiente.`,
+            },
+        ],
+    },
 ];
 
 /** Devuelve un LearningBlock por su id, o undefined si no existe. */

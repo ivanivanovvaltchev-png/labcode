@@ -573,6 +573,77 @@ ${card3Block}`;
     );
 }
 
+// ─── Maestro-generated plan ───────────────────────────────────────────────────
+
+/**
+ * Generates today's 3 training cards (Básico/Intermedio/Avanzado) from a
+ * Maestro free-chat conversation instead of the automatic slot system —
+ * e.g. the student asked "créame un plan diario con los conceptos más
+ * importantes para el mundo laboral" and Maestro should turn that request
+ * into real, executable exercise cards.
+ *
+ * Still grounded in the real curriculum: `knowledgeIndex` (every concept in
+ * every Mejora block) is the only source of truth for what the 3 cards may
+ * be about — the conversation just decides WHICH of those real concepts to
+ * prioritize, it never introduces new syntax the student hasn't been taught.
+ */
+export async function generateMaestroPlan(
+    chatHistory: { role: 'user' | 'assistant'; content: string }[],
+    knowledgeIndex: string,
+    progressSummary: string,
+    pathTitle: string
+): Promise<DailyTaskRaw[]> {
+    const conversationText = chatHistory
+        .slice(-16)
+        .map(m => `${m.role === 'user' ? 'Alumno' : 'Maestro'}: ${m.content}`)
+        .join('\n\n');
+
+    const systemPrompt = `Eres el generador de planes de entrenamiento de "Maestro", para un alumno de "${pathTitle}". Devuelve ÚNICAMENTE el JSON indicado, sin texto extra ni markdown.
+
+TEMARIO REAL DEL ALUMNO (única fuente de verdad — nunca inventes conceptos, métodos o sintaxis que no aparezcan aquí):
+${knowledgeIndex}
+
+PROGRESO ACTUAL DEL ALUMNO:
+${progressSummary}
+
+El alumno ha tenido esta conversación con Maestro y le ha pedido que le genere un plan de entrenamiento de HOY (3 tarjetas: Básico, Intermedio, Avanzado), basado en lo que se ha hablado — por ejemplo priorizando los conceptos más importantes para el mundo laboral, o los que peor domina, o cualquier criterio que el alumno haya pedido explícitamente en la conversación.
+
+REGLAS:
+- Elige, para las 3 tarjetas, conceptos REALES del temario de arriba que encajen con lo que el alumno ha pedido en la conversación. Pueden ser del mismo bloque o de bloques distintos si la petición del alumno lo justifica (p.ej. "los más importantes para trabajar" puede abarcar varios temas).
+- Cada tarjeta se centra en UN concepto claro (puedes combinarlo con otro muy relacionado si tiene sentido).
+- No repitas literalmente el mismo enunciado en las 3 dificultades — cada una es una versión distinta del mismo objetivo.
+
+FORMATO — devuelve exactamente este JSON object con clave "tasks", 3 tarjetas, cada una con TRES versiones del enunciado:
+{
+  "tasks": [
+    {
+      "type": "practice",
+      "title": "Básico — <tema real elegido>",
+      "description": "VERSIÓN FÁCIL: enunciado completo con pasos numerados y ejemplo de datos.",
+      "descriptionMedio": "VERSIÓN MEDIA: describe el escenario y el objetivo, sin pasos ni nombres de función.",
+      "descriptionDificil": "VERSIÓN DIFÍCIL: máximo 2 frases, solo el objetivo.",
+      "skillRef": "<nombre EXACTO del concepto elegido, tal cual aparece en el temario de arriba>"
+    }
+  ]
+}
+Las 3 tarjetas deben llevar "title" con el prefijo "Básico — ", "Intermedio — " y "Avanzado — " respectivamente, seguido del nombre del tema elegido para esa tarjeta.`;
+
+    const userPrompt = `Conversación reciente entre el alumno y Maestro:
+---
+${conversationText}
+---
+
+Genera el plan de entrenamiento de hoy (JSON con clave "tasks", 3 tarjetas) según lo que el alumno ha pedido en esa conversación. Semilla: ${Math.random().toString(36).slice(2, 8)}.`;
+
+    const rawResult = await deepSeekJSON<DailyTaskRaw[] | { tasks?: DailyTaskRaw[] }>(systemPrompt, userPrompt);
+    const result: DailyTaskRaw[] = Array.isArray(rawResult)
+        ? rawResult
+        : (rawResult as { tasks?: DailyTaskRaw[] }).tasks ?? [];
+
+    if (result.length === 0) throw new Error('Maestro no pudo generar un plan válido. Inténtalo de nuevo.');
+    return result;
+}
+
 // ─── Master Feedback ─────────────────────────────────────────────────────────
 
 export async function generateMasterFeedback(tasks: DailyTask[], pathTitle: string): Promise<string> {

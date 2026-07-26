@@ -1,10 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { callDeepSeekForMaestro, ChatMessage } from '../../ai/agents';
+import { generateMaestroPlan, DailyTaskRaw } from '../../ai/diagnosticAgent';
 import { loadSelectedPath } from '../../lib/selectedPath';
 import { getPathById } from '../../data/careerPaths';
 import { getMejoraKnowledgeIndex } from '../../lib/mejoraSections';
 import { getProgressSummaryText } from '../../lib/masteryEngine';
+import { getDailyPlan, saveDailyPlan, todayString } from '../../lib/userProgress';
 
 const STORAGE_KEY = 'labcode_maestro_session';
 
@@ -33,6 +35,10 @@ const MaestroPage: React.FC = () => {
     const [messages, setMessages] = useState<ChatMessage[]>(() => loadHistory());
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
+    const [proposedPlan, setProposedPlan] = useState<DailyTaskRaw[] | null>(null);
+    const [planError, setPlanError] = useState<string | null>(null);
+    const [planSaved, setPlanSaved] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const pathId = loadSelectedPath();
@@ -71,6 +77,43 @@ const MaestroPage: React.FC = () => {
         if (messages.length > 0 && !window.confirm('¿Empezar una conversación nueva? Se perderá el historial actual.')) return;
         localStorage.removeItem(STORAGE_KEY);
         setMessages([]);
+        setProposedPlan(null);
+        setPlanError(null);
+        setPlanSaved(false);
+    };
+
+    const handleGeneratePlan = async () => {
+        if (messages.length === 0 || isGeneratingPlan) return;
+        setIsGeneratingPlan(true);
+        setPlanError(null);
+        setPlanSaved(false);
+        try {
+            const knowledgeIndex = getMejoraKnowledgeIndex();
+            const progressSummary = pathId ? getProgressSummaryText(pathId) : 'El alumno todavía no ha seleccionado un camino de aprendizaje.';
+            const tasks = await generateMaestroPlan(messages, knowledgeIndex, progressSummary, path?.title ?? 'Programación');
+            setProposedPlan(tasks);
+        } catch (err) {
+            setPlanError(err instanceof Error ? err.message : 'Error desconocido generando el plan.');
+        }
+        setIsGeneratingPlan(false);
+    };
+
+    const handleApplyPlan = () => {
+        if (!pathId || !proposedPlan) return;
+        const current = getDailyPlan(pathId);
+        const pendingCount = current?.tasks.filter(t => !t.completed).length ?? 0;
+        if (pendingCount > 0) {
+            const ok = window.confirm(
+                `Vas a reemplazar las ${pendingCount} tarjeta${pendingCount > 1 ? 's' : ''} pendiente${pendingCount > 1 ? 's' : ''} de tu entrenamiento de hoy por este plan de Maestro. Se perderá el progreso sin terminar. ¿Continuar?`
+            );
+            if (!ok) return;
+        }
+        saveDailyPlan(pathId, {
+            date: todayString(),
+            tasks: proposedPlan.map((t, i) => ({ ...t, id: `maestro-task-${Date.now()}-${i}`, completed: false })),
+            generatedAt: Date.now(),
+        });
+        setPlanSaved(true);
     };
 
     return (
@@ -79,12 +122,70 @@ const MaestroPage: React.FC = () => {
                 <button onClick={() => navigate('/camino')} className="text-light/40 hover:text-light transition-colors text-sm">
                     ← Volver
                 </button>
-                {messages.length > 0 && (
-                    <button onClick={handleNewConversation} className="text-xs text-light/30 hover:text-red-400 transition-colors">
-                        Nueva conversación
-                    </button>
-                )}
+                <div className="flex items-center gap-3">
+                    {messages.length > 0 && (
+                        <button
+                            onClick={handleGeneratePlan}
+                            disabled={isGeneratingPlan}
+                            className="text-xs text-amber-300 hover:text-amber-200 border border-amber-500/30 bg-amber-900/10 hover:bg-amber-900/20 disabled:opacity-40 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+                        >
+                            {isGeneratingPlan ? 'Generando…' : '📋 Crear plan de entrenamiento con esto'}
+                        </button>
+                    )}
+                    {messages.length > 0 && (
+                        <button onClick={handleNewConversation} className="text-xs text-light/30 hover:text-red-400 transition-colors">
+                            Nueva conversación
+                        </button>
+                    )}
+                </div>
             </div>
+
+            {planError && (
+                <div className="mb-3 bg-red-900/20 border border-red-500/30 rounded-xl px-4 py-3 text-sm text-red-300">
+                    ❌ {planError}
+                </div>
+            )}
+
+            {proposedPlan && !planSaved && (
+                <div className="mb-3 bg-[#1a1a1a] border border-amber-500/30 rounded-2xl p-5">
+                    <p className="text-sm font-bold text-amber-300 mb-1">📋 Plan de entrenamiento propuesto</p>
+                    <p className="text-xs text-light/40 mb-4">Basado en tu conversación con Maestro. Revísalo y aplícalo a "Tu entrenamiento de hoy" si te convence.</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                        {proposedPlan.map((task, i) => (
+                            <div key={i} className="bg-[#0f0f0f] border border-light/10 rounded-xl p-3">
+                                <p className="text-xs font-bold text-light/80 mb-1">{task.title}</p>
+                                <p className="text-xs text-light/40 leading-relaxed line-clamp-4">{task.description}</p>
+                            </div>
+                        ))}
+                    </div>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={handleApplyPlan}
+                            className="bg-amber-600 hover:bg-amber-500 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition-all"
+                        >
+                            ✅ Aplicar como entrenamiento de hoy
+                        </button>
+                        <button
+                            onClick={() => setProposedPlan(null)}
+                            className="text-sm text-light/40 hover:text-light/70 border border-light/10 px-4 py-2.5 rounded-xl transition-colors"
+                        >
+                            Descartar
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {planSaved && (
+                <div className="mb-3 bg-emerald-900/15 border border-emerald-500/30 rounded-2xl p-4 flex items-center justify-between gap-4">
+                    <p className="text-sm text-emerald-300">✅ Plan guardado — ya está en "Tu entrenamiento de hoy".</p>
+                    <button
+                        onClick={() => navigate('/camino')}
+                        className="text-sm bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded-xl transition-all whitespace-nowrap"
+                    >
+                        Ir ahora →
+                    </button>
+                </div>
+            )}
 
             <div className="flex flex-col bg-[#1a1a1a] border border-light/10 rounded-2xl overflow-hidden" style={{ height: 'calc(100vh - 140px)' }}>
                 <div className="px-5 py-3 border-b border-light/10 flex items-center gap-3 flex-shrink-0">

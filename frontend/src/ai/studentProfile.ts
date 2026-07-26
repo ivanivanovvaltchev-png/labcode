@@ -64,23 +64,20 @@ export const HABILIDADES_PERMITIDAS: string[] = [
 // ─── Conceptos absolutamente prohibidos ──────────────────────────────────────
 // If any of these appear in AI output, the response is rejected and retried.
 //
-// NOTE: 'tupla'/'tuple('/'set(' were removed from this list — the student is
-// now actively studying tuples and sets (see practicePaths.ts), so they are
-// no longer forbidden content. Diccionarios/funciones/clases/excepciones etc.
-// remain forbidden until a PDF introduces them.
+// NOTE (2026-07-26 cleanup): removed everything that's actually taught by an
+// existing LEARNING_BLOCKS entry (practicePaths.ts) — def/return/parámetros/
+// argumentos/función* (funciones-basico), diccionario/dict()/.keys()/.values()/
+// .items() (diccionarios), lambda (funciones-lambda-decoradores), try/except/
+// raise (excepciones), open()/with open (manipulacion-archivos), .split()
+// (used in both funciones-lambda-decoradores and excepciones), and class /
+// self./__init__ (poo). Several of these had been stale since the blocks
+// that cover them were added in earlier sessions — don't leave a prohibition
+// blocking content the student has already been taught; remove it here the
+// same day a new PDF/bloque legitimizes it (see pdf_curation_workflow memory).
+//
+// Only genuinely NOT-yet-covered topics remain below.
 
 export const CONCEPTOS_PROHIBIDOS: string[] = [
-    'def ',
-    ' def',
-    'return ',
-    ' return',
-    'parámetros',
-    'parametros',
-    'argumentos',
-    'función',
-    'funcion',
-    'funciones',
-    'function',
     'sql',
     'select ',
     'where ',
@@ -91,22 +88,6 @@ export const CONCEPTOS_PROHIBIDOS: string[] = [
     'pseudocodigo',
     'git ',
     'github',
-    '.split()',
-    'split(',
-    'diccionario',
-    'dict(',
-    '.keys()',
-    '.values()',
-    '.items()',
-    'class ',
-    'lambda',
-    'try:',
-    'except',
-    'raise ',
-    'open(',
-    'with open',
-    '__init__',
-    'self.',
     'orm',
     'sqlalchemy',
 ];
