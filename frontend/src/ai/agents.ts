@@ -37,6 +37,20 @@ export const agents: Record<number, AIAgent> = {
 
 const DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions";
 
+// Raw fetch() has no timeout of its own — a stalled connection would leave
+// the caller waiting forever (e.g. Mentor stuck on "..." indefinitely).
+// Every call site below races the request against this 30s timeout.
+async function fetchDeepSeekRaw(apiKey: string, body: object): Promise<Response> {
+    return Promise.race([
+        fetch(DEEPSEEK_API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+            body: JSON.stringify(body),
+        }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout: DeepSeek no respondió en 30 s')), 30_000)),
+    ]);
+}
+
 async function makeDeepSeekRequest(systemRole: string, userMessage: string, temperature: number = 0.7): Promise<string> {
     const apiKey = import.meta.env.VITE_DEEPSEEK_API_KEY;
 
@@ -149,15 +163,11 @@ export async function callDeepSeekForChat(moduleId: number, messages: ChatMessag
     if (!apiKey) return "⚠️ Error: No API Key.";
 
     try {
-        const response = await fetch(DEEPSEEK_API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-            body: JSON.stringify({
-                model: 'deepseek-chat',
-                messages: [{ role: 'system', content: systemPrompt }, ...messages],
-                temperature: 0.7,
-                max_tokens: 1500
-            })
+        const response = await fetchDeepSeekRaw(apiKey, {
+            model: 'deepseek-chat',
+            messages: [{ role: 'system', content: systemPrompt }, ...messages],
+            temperature: 0.7,
+            max_tokens: 1500
         });
         if (!response.ok) throw new Error(await response.text());
         const data = await response.json();
@@ -230,11 +240,7 @@ ${exerciseStatement}
           ];
 
     try {
-        const response = await fetch(DEEPSEEK_API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-            body: JSON.stringify({ model: 'deepseek-chat', messages, temperature: 0.7, max_tokens: 1000 })
-        });
+        const response = await fetchDeepSeekRaw(apiKey, { model: 'deepseek-chat', messages, temperature: 0.7, max_tokens: 1000 });
         if (!response.ok) throw new Error(await response.text());
         const data = await response.json();
         return data.choices?.[0]?.message?.content || "No se pudo generar respuesta.";
@@ -335,15 +341,11 @@ Esto NO es un ejercicio guiado — no hay "solución correcta" que ocultar. Si e
     if (!apiKey) return "⚠️ Error: No se ha encontrado la clave de API de DeepSeek.";
 
     try {
-        const response = await fetch(DEEPSEEK_API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-            body: JSON.stringify({
-                model: 'deepseek-chat',
-                messages: [{ role: 'system', content: systemPrompt }, ...chatHistory],
-                temperature: 0.7,
-                max_tokens: 1500,
-            }),
+        const response = await fetchDeepSeekRaw(apiKey, {
+            model: 'deepseek-chat',
+            messages: [{ role: 'system', content: systemPrompt }, ...chatHistory],
+            temperature: 0.7,
+            max_tokens: 1500,
         });
         if (!response.ok) throw new Error(await response.text());
         const data = await response.json();
