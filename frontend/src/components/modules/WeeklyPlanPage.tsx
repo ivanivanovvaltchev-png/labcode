@@ -18,6 +18,7 @@ const WeeklyPlanPage: React.FC = () => {
     const pathId = loadSelectedPath();
     const [plan, setPlan] = useState(() => (pathId ? loadWeeklyPlan(pathId) : null));
     const [difficulty, setDifficulty] = useState<Difficulty>('facil');
+    const [selectedDayId, setSelectedDayId] = useState<string | null>(null);
 
     if (!pathId) {
         return (
@@ -47,7 +48,9 @@ const WeeklyPlanPage: React.FC = () => {
     }
 
     const todayDay = getTodayCycleDay(plan);
-    const doneToday = isDayDoneToday(plan, todayDay.id);
+    const activeDay = (selectedDayId && plan.days.find(d => d.id === selectedDayId)) || todayDay;
+    const isToday = activeDay.id === todayDay.id;
+    const doneActive = isDayDoneToday(plan, activeDay.id);
 
     const descFor = (d: Difficulty, day: WeeklyPlanDay): string => {
         if (d === 'dificil') return day.descriptionDificil ?? day.description;
@@ -57,21 +60,21 @@ const WeeklyPlanPage: React.FC = () => {
 
     const handlePracticeNow = () => {
         const params = new URLSearchParams({
-            taskTitle: todayDay.theme,
-            taskDesc: descFor(difficulty, todayDay),
-            skillRef: todayDay.skillRef,
+            taskTitle: activeDay.theme,
+            taskDesc: descFor(difficulty, activeDay),
+            skillRef: activeDay.skillRef,
             taskDifficulty: difficulty,
-            taskDescFacil: todayDay.description,
+            taskDescFacil: activeDay.description,
             s: mintSessionId(),
         });
-        if (todayDay.descriptionMedio) params.set('taskDescMedio', todayDay.descriptionMedio);
-        if (todayDay.descriptionDificil) params.set('taskDescDificil', todayDay.descriptionDificil);
+        if (activeDay.descriptionMedio) params.set('taskDescMedio', activeDay.descriptionMedio);
+        if (activeDay.descriptionDificil) params.set('taskDescDificil', activeDay.descriptionDificil);
         navigate(`/mentor?${params.toString()}`);
     };
 
     const handleMarkDone = () => {
         if (!pathId) return;
-        const updated = markDayCompletedToday(pathId, plan, todayDay.id);
+        const updated = markDayCompletedToday(pathId, plan, activeDay.id);
         setPlan(updated);
     };
 
@@ -96,10 +99,22 @@ const WeeklyPlanPage: React.FC = () => {
 
             <div className="bg-[#1a1a1a] border border-violet-500/30 rounded-2xl p-6 mb-6">
                 <div className="flex items-center justify-between mb-3">
-                    <p className="text-xs font-bold text-violet-300 uppercase tracking-wide">Hoy · Día {todayDay.dayNumber}</p>
-                    {doneToday && <span className="text-xs text-emerald-400 font-semibold">✅ Hecho hoy</span>}
+                    <p className="text-xs font-bold text-violet-300 uppercase tracking-wide">
+                        {isToday ? 'Hoy' : 'Elegido'} · Día {activeDay.dayNumber}
+                    </p>
+                    <div className="flex items-center gap-2">
+                        {!isToday && (
+                            <button
+                                onClick={() => setSelectedDayId(null)}
+                                className="text-xs text-light/30 hover:text-violet-300 transition-colors"
+                            >
+                                Volver a hoy
+                            </button>
+                        )}
+                        {doneActive && <span className="text-xs text-emerald-400 font-semibold">✅ Hecho</span>}
+                    </div>
                 </div>
-                <h2 className="text-lg font-bold text-light mb-3">{todayDay.theme}</h2>
+                <h2 className="text-lg font-bold text-light mb-3">{activeDay.theme}</h2>
 
                 <div className="flex gap-2 mb-4">
                     {(['facil', 'medio', 'dificil'] as Difficulty[]).map(d => (
@@ -117,7 +132,7 @@ const WeeklyPlanPage: React.FC = () => {
                     ))}
                 </div>
 
-                <p className="text-sm text-light/60 leading-relaxed whitespace-pre-wrap mb-5">{descFor(difficulty, todayDay)}</p>
+                <p className="text-sm text-light/60 leading-relaxed whitespace-pre-wrap mb-5">{descFor(difficulty, activeDay)}</p>
 
                 <div className="flex gap-2">
                     <button
@@ -128,28 +143,33 @@ const WeeklyPlanPage: React.FC = () => {
                     </button>
                     <button
                         onClick={handleMarkDone}
-                        disabled={doneToday}
+                        disabled={doneActive}
                         className="text-sm border border-light/10 text-light/60 hover:text-light/90 disabled:opacity-40 px-4 py-2.5 rounded-xl transition-colors"
                     >
-                        ✅ Marcar como hecho hoy
+                        ✅ Marcar como practicado hoy
                     </button>
                 </div>
             </div>
 
-            <p className="text-xs font-bold text-light/40 uppercase tracking-wide mb-3">Todos los días del ciclo</p>
+            <p className="text-xs font-bold text-light/40 uppercase tracking-wide mb-3">Todos los días del ciclo — elige uno para practicarlo</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {plan.days.map(day => (
-                    <div
+                    <button
                         key={day.id}
-                        className={`rounded-xl p-3 border ${
-                            day.id === todayDay.id ? 'border-violet-400/50 bg-violet-900/10' : 'border-light/10 bg-[#0f0f0f]'
+                        onClick={() => setSelectedDayId(day.id)}
+                        className={`text-left rounded-xl p-3 border transition-colors ${
+                            day.id === activeDay.id
+                                ? 'border-violet-400/60 bg-violet-900/15'
+                                : 'border-light/10 bg-[#0f0f0f] hover:border-violet-500/30'
                         }`}
                     >
                         <p className="text-xs font-bold text-light/70 mb-1">
-                            Día {day.dayNumber} · {day.theme} {day.id === todayDay.id && <span className="text-violet-300">(hoy)</span>}
+                            Día {day.dayNumber} · {day.theme}{' '}
+                            {day.id === todayDay.id && <span className="text-violet-300">(hoy)</span>}
+                            {isDayDoneToday(plan, day.id) && <span className="text-emerald-400"> · ✅</span>}
                         </p>
                         <p className="text-xs text-light/40 leading-relaxed line-clamp-3">{day.description}</p>
-                    </div>
+                    </button>
                 ))}
             </div>
         </div>
